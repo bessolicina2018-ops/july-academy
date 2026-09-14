@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   Calendar, FileText, Headphones, Layers, GraduationCap, Video, CheckCircle2,
   Circle, Plus, X, Send, Loader2, Users, LogOut, ChevronRight, Sparkles,
@@ -16,6 +16,14 @@ const BORDER = "#E4DECF";
 const INK = "#242320";
 const MUTED = "#7A756A";
 const LEVELS = ["A1", "A2", "B1", "B2"];
+
+const SELF_LEVELS = ["Complete beginner", "A1", "A2", "B1", "B2", "C1", "C2", "Not sure"];
+const WHY_LEARNING = ["I live in Spain", "I'm moving to Spain", "Work / career", "Business", "University / studies", "Travel", "Relationship / partner", "Family", "Social life / making friends", "Exams / certification", "Personal interest", "I want to feel more confident", "Other"];
+const PRIORITIES = ["Speak more fluently", "Speak without translating", "Understand native speakers", "Expand vocabulary", "Improve grammar", "Improve pronunciation", "Improve writing", "Improve reading", "Build confidence", "Learn colloquial Spanish", "Spanish for work", "Spanish for everyday life", "Other"];
+const WHERE_USED = ["At home", "At work", "With colleagues", "With friends", "With my partner", "With family", "In restaurants / cafés", "In shops", "At the doctor / pharmacy", "Government / admin situations", "University", "Travel", "Social media", "Other"];
+const CHALLENGES = ["Lack of vocabulary", "Grammar", "Listening comprehension", "Speaking", "Pronunciation", "Lack of practice", "Fear of making mistakes", "Lack of confidence", "Lack of time", "I don't know what to study", "I lose motivation", "I don't have anyone to practice with", "Other"];
+const ACTIVITIES = ["Conversation", "Videos", "Podcasts", "Reading", "Stories", "Grammar exercises", "Vocabulary exercises", "Games / quizzes", "Writing", "Role-plays", "Real-life situations", "Homework", "Other"];
+const CORRECTION_PREFS = ["Correct every mistake", "Correct important mistakes only", "Correct me immediately", "Let me finish, then correct me", "Only correct mistakes that affect communication", "Focus on grammar", "Focus on pronunciation", "Give me more natural alternatives"];
 
 /* ---------------------------------------------------------------- */
 /* Fill-in-the-blank worksheet rendering                             */
@@ -81,8 +89,110 @@ function Input(props) {
 function Textarea(props) {
   return <textarea {...props} className={"w-full rounded-lg px-3 py-2 text-sm bg-white outline-none resize-y " + (props.className || "")} style={{ border: `1px solid ${BORDER}`, color: INK, minHeight: 90 }} />;
 }
+
+/* ---------------------------------------------------------------- */
+/* Lightweight formatted documents — type simple symbols, see them   */
+/* rendered nicely. **bold**, # Big heading, ## Smaller heading,     */
+/* "- item" for bullet lists, and --- for a divider line.            */
+/* ---------------------------------------------------------------- */
+function renderInline(text) {
+  const parts = (text || "").split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((part, i) => (/^\*\*[^*]+\*\*$/.test(part) ? <strong key={i}>{part.slice(2, -2)}</strong> : <React.Fragment key={i}>{part}</React.Fragment>));
+}
+function RichDoc({ text, className = "" }) {
+  const lines = (text || "").split("\n");
+  const elements = [];
+  let list = [];
+  const flushList = () => {
+    if (list.length) { elements.push(<ul key={"l" + elements.length} className="list-disc pl-5 my-1 space-y-0.5">{list.map((li, i) => <li key={i}>{renderInline(li)}</li>)}</ul>); list = []; }
+  };
+  lines.forEach((line, i) => {
+    const t = line.trim();
+    if (/^---+$/.test(t)) { flushList(); elements.push(<hr key={"h" + i} className="my-3" style={{ borderColor: BORDER }} />); return; }
+    if (/^##\s+/.test(t)) { flushList(); elements.push(<h4 key={"h2" + i} className="text-sm font-semibold mt-3 mb-1" style={{ fontFamily: "Georgia, serif", color: INK }}>{renderInline(t.replace(/^##\s+/, ""))}</h4>); return; }
+    if (/^#\s+/.test(t)) { flushList(); elements.push(<h3 key={"h1" + i} className="text-base font-semibold mt-3 mb-1" style={{ fontFamily: "Georgia, serif", color: INK }}>{renderInline(t.replace(/^#\s+/, ""))}</h3>); return; }
+    if (/^[-*]\s+/.test(t)) { list.push(t.replace(/^[-*]\s+/, "")); return; }
+    flushList();
+    if (t === "") { elements.push(<div key={"b" + i} className="h-2" />); return; }
+    elements.push(<p key={"p" + i} className="mb-1">{renderInline(line)}</p>);
+  });
+  flushList();
+  return <div className={"text-sm leading-relaxed " + className} style={{ color: INK }}>{elements}</div>;
+}
+function RichEditor({ value, onChange, onBlur, placeholder, minHeight = 160 }) {
+  const ref = useRef(null);
+  const wrapSelection = (marker) => {
+    const el = ref.current;
+    if (!el) return;
+    const start = el.selectionStart, end = el.selectionEnd;
+    const selected = value.slice(start, end) || "text";
+    const next = value.slice(0, start) + marker + selected + marker + value.slice(end);
+    onChange(next);
+    requestAnimationFrame(() => { el.focus(); el.selectionStart = start + marker.length; el.selectionEnd = start + marker.length + selected.length; });
+  };
+  const prefixLine = (prefix) => {
+    const el = ref.current;
+    if (!el) return;
+    const start = el.selectionStart;
+    const lineStart = value.lastIndexOf("\n", start - 1) + 1;
+    const next = value.slice(0, lineStart) + prefix + value.slice(lineStart);
+    onChange(next);
+    requestAnimationFrame(() => el.focus());
+  };
+  const addDivider = () => onChange(value + (value.endsWith("\n") || !value ? "" : "\n") + "\n---\n");
+  const tbBtn = "text-xs px-2 py-1 rounded";
+  return (
+    <div>
+      <div className="flex flex-wrap gap-1 mb-1.5">
+        <button type="button" onClick={() => wrapSelection("**")} className={tbBtn} style={{ border: `1px solid ${BORDER}`, fontWeight: 700 }}>B</button>
+        <button type="button" onClick={() => prefixLine("# ")} className={tbBtn} style={{ border: `1px solid ${BORDER}` }}>Title</button>
+        <button type="button" onClick={() => prefixLine("## ")} className={tbBtn} style={{ border: `1px solid ${BORDER}` }}>Subtitle</button>
+        <button type="button" onClick={() => prefixLine("- ")} className={tbBtn} style={{ border: `1px solid ${BORDER}` }}>• List</button>
+        <button type="button" onClick={addDivider} className={tbBtn} style={{ border: `1px solid ${BORDER}` }}>— Divider</button>
+      </div>
+      <textarea
+        ref={ref}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={onBlur}
+        placeholder={placeholder}
+        className="w-full rounded-lg px-3 py-2 text-sm bg-white outline-none resize-y"
+        style={{ border: `1px solid ${BORDER}`, color: INK, minHeight, fontFamily: "ui-monospace, monospace" }}
+      />
+      <div className="mt-2 rounded-lg p-3" style={{ backgroundColor: CARD_BEIGE }}>
+        <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: MUTED, letterSpacing: "0.05em" }}>Preview</div>
+        {value ? <RichDoc text={value} /> : <p className="text-xs" style={{ color: MUTED }}>Nothing written yet.</p>}
+      </div>
+    </div>
+  );
+}
 function Select({ children, ...props }) {
   return <select {...props} className="w-full rounded-lg px-3 py-2 text-sm bg-white outline-none" style={{ border: `1px solid ${BORDER}`, color: INK }}>{children}</select>;
+}
+function CheckboxGroup({ options, values, onChange, max, disabled }) {
+  const toggle = (opt) => {
+    if (disabled) return;
+    const has = values.includes(opt);
+    if (has) onChange(values.filter((v) => v !== opt));
+    else {
+      if (max && values.length >= max) return;
+      onChange([...values, opt]);
+    }
+  };
+  return (
+    <div className="flex flex-wrap gap-2">
+      {options.map((opt) => {
+        const active = values.includes(opt);
+        return (
+          <button type="button" key={opt} onClick={() => toggle(opt)} disabled={disabled}
+            className="text-xs px-3 py-1.5 rounded-full transition-colors disabled:opacity-60"
+            style={{ backgroundColor: active ? GREEN : "white", color: active ? "white" : INK, border: `1px solid ${active ? GREEN : BORDER}` }}>
+            {opt}
+          </button>
+        );
+      })}
+    </div>
+  );
 }
 function Card({ children, className = "", style = {} }) {
   return <div className={"rounded-2xl bg-white " + className} style={{ border: `1px solid ${BORDER}`, ...style }}>{children}</div>;
@@ -228,6 +338,7 @@ function Shell({ roleLabel, tabs, active, setActive, onLogout, children }) {
           {tabs.map((t) => (
             <button key={t.key} onClick={() => setActive(t.key)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-left" style={{ backgroundColor: active === t.key ? CARD_BEIGE : "transparent", color: active === t.key ? INK : MUTED, fontWeight: active === t.key ? 600 : 400 }}>
               <t.icon size={16} /> {t.label}
+              {t.badge && <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: GREEN }} />}
             </button>
           ))}
         </nav>
@@ -285,6 +396,7 @@ function TeacherStudents({ data, refresh }) {
   const addGroup = async () => { if (!groupForm.name.trim()) return; await db.addGroup(groupForm); setGroupForm({ name: "", level: "A1" }); setShowGroup(false); refresh(); };
   const removeStudent = async (id) => { await db.removeStudent(id); refresh(); };
   const setIntensive = async (studentId, groupId) => { await db.setIntensiveGroup(studentId, groupId); refresh(); };
+  const [profileStudent, setProfileStudent] = useState(null);
 
   return (
     <div>
@@ -311,6 +423,7 @@ function TeacherStudents({ data, refresh }) {
                   <div className="text-xs mt-1" style={{ color: MUTED }}>Login code: <span className="font-mono px-2 py-0.5 rounded" style={{ backgroundColor: CARD_BEIGE }}>{s.code}</span>{s.profileId && <span className="ml-2" style={{ color: GREEN }}>· linked</span>}</div>
                 </div>
                 <div className="flex items-center gap-3">
+                  <button onClick={() => setProfileStudent(s)} className="text-xs px-2 py-1 rounded-full" style={{ backgroundColor: data.studentProfiles[s.id]?.completedAt ? "#eef6ee" : CARD_BEIGE, color: data.studentProfiles[s.id]?.completedAt ? GREEN : MUTED }}>Profile</button>
                   <label className="flex items-center gap-1.5 text-xs" style={{ color: MUTED }}>
                     Intensive:
                     <Select value={s.intensiveGroupId || ""} onChange={(e) => setIntensive(s.id, e.target.value || null)} className="!py-1 !text-xs w-auto">
@@ -349,11 +462,43 @@ function TeacherStudents({ data, refresh }) {
           </div>
         </Modal>
       )}
+      {profileStudent && (
+        <Modal title={`${profileStudent.name}'s profile`} onClose={() => setProfileStudent(null)} wide>
+          <StudentProfileSummary profile={data.studentProfiles[profileStudent.id]} student={profileStudent} />
+        </Modal>
+      )}
     </div>
   );
 }
 
-function TeacherTimetable({ data, refresh }) {
+function ProfileRow({ label, value }) {
+  if (!value || (Array.isArray(value) && value.length === 0)) return null;
+  return (
+    <div className="mb-3">
+      <div className="text-xs" style={{ color: MUTED }}>{label}</div>
+      <div className="text-sm" style={{ color: INK }}>{Array.isArray(value) ? value.join(", ") : value}</div>
+    </div>
+  );
+}
+
+function StudentProfileSummary({ profile, student }) {
+  if (!profile?.completedAt) return <EmptyState text="This student hasn't completed their profile survey yet." />;
+  return (
+    <div>
+      <ProfileRow label="Email" value={student.email} />
+      <ProfileRow label="WhatsApp" value={student.whatsapp} />
+      <ProfileRow label="Native language" value={profile.nativeLanguage} />
+      <ProfileRow label="Self-assessed level" value={profile.selfLevel} />
+      <ProfileRow label="Why learning Spanish" value={profile.whyLearning} />
+      <ProfileRow label="Main goal" value={profile.mainGoal} />
+      <ProfileRow label="Top priorities" value={profile.topPriorities} />
+      <ProfileRow label="Where they'll use Spanish" value={profile.whereUsed} />
+      <ProfileRow label="Biggest challenge" value={profile.biggestChallenge} />
+      <ProfileRow label="Preferred activities" value={profile.preferredActivities} />
+      <ProfileRow label="Correction preference" value={profile.correctionPreference} />
+    </div>
+  );
+}
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ date: "", time: "", duration: "60", label: "", audienceType: "open", groupId: "", studentId: "" });
   const addSlot = async () => { if (!form.date || !form.time) return; await db.addSlot({ ...form, duration: Number(form.duration) }); setForm({ date: "", time: "", duration: "60", label: "", audienceType: "open", groupId: "", studentId: "" }); setShowAdd(false); refresh(); };
@@ -440,11 +585,11 @@ function TeacherDocs({ data, refresh }) {
           <div className="mb-5"><Select value={selected} onChange={(e) => setSelected(e.target.value)}>{data.students.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</Select></div>
           <Card className="p-5 mb-5">
             <h3 className="font-medium mb-2" style={{ fontFamily: "Georgia, serif" }}>Class notes</h3>
-            <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="What did you cover today?" />
+            <RichEditor value={note} onChange={setNote} placeholder="What did you cover today?" minHeight={100} />
             <div className="mt-2"><Btn onClick={addNote}><Plus size={14} />Add note</Btn></div>
             <div className="mt-4 space-y-2">
               {doc.notes.length === 0 ? <p className="text-xs" style={{ color: MUTED }}>No notes yet.</p> : doc.notes.map((n) => (
-                <div key={n.id} className="text-sm rounded-lg p-3" style={{ backgroundColor: CARD_BEIGE }}><div className="text-xs mb-1" style={{ color: MUTED }}>{n.date}</div>{n.text}</div>
+                <div key={n.id} className="text-sm rounded-lg p-3" style={{ backgroundColor: CARD_BEIGE }}><div className="text-xs mb-1" style={{ color: MUTED }}>{n.date}</div><RichDoc text={n.text} /></div>
               ))}
             </div>
           </Card>
@@ -621,7 +766,7 @@ function TeacherIntensive({ data, refresh }) {
           </div>
           <Card className="p-5 mb-6">
             <h3 className="font-medium mb-2" style={{ fontFamily: "Georgia, serif" }}>General class document — {cohort?.name}</h3>
-            <Textarea value={docDraft} onChange={(e) => setDocDraft(e.target.value)} onBlur={saveDoc} style={{ minHeight: 160 }} />
+            <RichEditor value={docDraft} onChange={setDocDraft} onBlur={saveDoc} placeholder="Write your class notes here..." />
             <p className="text-xs mt-1" style={{ color: MUTED }}>Saves automatically when you click away.</p>
           </Card>
           {enrolled.length === 0 ? <EmptyState text="No students enrolled in this cohort yet — set their 'Intensive' dropdown in Students & groups." /> : (
@@ -687,7 +832,7 @@ function TeacherPrerecorded({ data, refresh }) {
             <>
               <Card className="p-5 mb-5">
                 <h3 className="font-medium mb-2" style={{ fontFamily: "Georgia, serif" }}>Theory document</h3>
-                <Textarea value={theoryDraft} onChange={(e) => setTheoryDraft(e.target.value)} onBlur={saveTheory} style={{ minHeight: 160 }} />
+                <RichEditor value={theoryDraft} onChange={setTheoryDraft} onBlur={saveTheory} placeholder="Write the course theory here..." />
               </Card>
               <Card className="p-5">
                 <div className="flex items-center justify-between mb-3">
@@ -733,6 +878,9 @@ function TeacherPrerecorded({ data, refresh }) {
 /* ================================================================ */
 function StudentApp({ data, refresh, student, onLogout }) {
   const [active, setActive] = useState("timetable");
+  const profile = data.studentProfiles[student.id];
+  const needsProfile = !profile?.completedAt;
+  const [showPrompt, setShowPrompt] = useState(needsProfile);
   const tabs = [
     { key: "timetable", label: "My timetable", icon: Calendar },
     { key: "docs", label: "My document", icon: FileText },
@@ -741,6 +889,7 @@ function StudentApp({ data, refresh, student, onLogout }) {
     { key: "progress", label: "My progress", icon: CheckCircle2 },
     ...(student?.intensiveGroupId ? [{ key: "intensive", label: "Intensive classroom", icon: GraduationCap }] : []),
     { key: "courses", label: "My courses", icon: Video },
+    { key: "profile", label: "My profile", icon: FileText, badge: needsProfile },
   ];
   if (!student) return null;
   return (
@@ -752,7 +901,109 @@ function StudentApp({ data, refresh, student, onLogout }) {
       {active === "progress" && <StudentProgress data={data} student={student} />}
       {active === "intensive" && <StudentIntensive data={data} refresh={refresh} student={student} />}
       {active === "courses" && <StudentCourses data={data} refresh={refresh} student={student} />}
+      {active === "profile" && <StudentProfileForm data={data} refresh={refresh} student={student} />}
+      {showPrompt && (
+        <Modal title="Tell us about yourself" onClose={() => setShowPrompt(false)}>
+          <p className="text-sm mb-4" style={{ color: MUTED }}>
+            A quick survey helps your teacher personalize your lessons, topics, and how she corrects you. It only takes a couple of minutes — and you can always fill it in later.
+          </p>
+          <div className="flex gap-2">
+            <Btn onClick={() => { setActive("profile"); setShowPrompt(false); }}>Fill it in now</Btn>
+            <Btn variant="ghost" onClick={() => setShowPrompt(false)}>Maybe later</Btn>
+          </div>
+        </Modal>
+      )}
     </Shell>
+  );
+}
+
+function emptyProfileFields(student, profile) {
+  return {
+    email: student.email || "",
+    whatsapp: student.whatsapp || "",
+    nativeLanguage: profile?.nativeLanguage || "",
+    selfLevel: profile?.selfLevel || "",
+    whyLearning: profile?.whyLearning || [],
+    mainGoal: profile?.mainGoal || "",
+    topPriorities: profile?.topPriorities || [],
+    whereUsed: profile?.whereUsed || [],
+    biggestChallenge: profile?.biggestChallenge || "",
+    preferredActivities: profile?.preferredActivities || [],
+    correctionPreference: profile?.correctionPreference || "",
+  };
+}
+
+function StudentProfileForm({ data, refresh, student, onDone }) {
+  const profile = data.studentProfiles[student.id];
+  const [form, setForm] = useState(() => emptyProfileFields(student, profile));
+  const [saving, setSaving] = useState(false);
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+
+  const save = async () => {
+    setSaving(true);
+    await db.saveStudentProfile(student.id, form);
+    setSaving(false);
+    refresh();
+    if (onDone) onDone();
+  };
+
+  return (
+    <div>
+      <SectionTitle sub="This helps your teacher personalize your lessons, topics, and how she corrects you.">
+        {profile?.completedAt ? "My profile" : "Tell us about yourself"}
+      </SectionTitle>
+      <div className="space-y-5 max-w-2xl">
+        <Card className="p-5 space-y-3">
+          <div><label className="text-xs" style={{ color: MUTED }}>Email</label><Input type="email" value={form.email} onChange={(e) => set("email", e.target.value)} /></div>
+          <div><label className="text-xs" style={{ color: MUTED }}>WhatsApp number</label><Input value={form.whatsapp} onChange={(e) => set("whatsapp", e.target.value)} /></div>
+          <div><label className="text-xs" style={{ color: MUTED }}>Native language</label><Input value={form.nativeLanguage} onChange={(e) => set("nativeLanguage", e.target.value)} /></div>
+        </Card>
+
+        <Card className="p-5">
+          <label className="text-xs" style={{ color: MUTED }}>How would you rate your current Spanish level?</label>
+          <div className="mt-2"><Select value={form.selfLevel} onChange={(e) => set("selfLevel", e.target.value)}><option value="">Select...</option>{SELF_LEVELS.map((l) => <option key={l}>{l}</option>)}</Select></div>
+        </Card>
+
+        <Card className="p-5">
+          <label className="text-xs" style={{ color: MUTED }}>Why are you learning Spanish? (choose all that apply)</label>
+          <div className="mt-2"><CheckboxGroup options={WHY_LEARNING} values={form.whyLearning} onChange={(v) => set("whyLearning", v)} /></div>
+        </Card>
+
+        <Card className="p-5">
+          <label className="text-xs" style={{ color: MUTED }}>What is your #1 goal with Spanish?</label>
+          <div className="mt-2"><Textarea value={form.mainGoal} onChange={(e) => set("mainGoal", e.target.value)} /></div>
+        </Card>
+
+        <Card className="p-5">
+          <label className="text-xs" style={{ color: MUTED }}>Top priorities — choose up to 3</label>
+          <div className="mt-2"><CheckboxGroup options={PRIORITIES} values={form.topPriorities} onChange={(v) => set("topPriorities", v)} max={3} /></div>
+        </Card>
+
+        <Card className="p-5">
+          <label className="text-xs" style={{ color: MUTED }}>Where will you use Spanish?</label>
+          <div className="mt-2"><CheckboxGroup options={WHERE_USED} values={form.whereUsed} onChange={(v) => set("whereUsed", v)} /></div>
+        </Card>
+
+        <Card className="p-5">
+          <label className="text-xs" style={{ color: MUTED }}>What's currently the biggest thing holding you back?</label>
+          <div className="mt-2"><Select value={form.biggestChallenge} onChange={(e) => set("biggestChallenge", e.target.value)}><option value="">Select...</option>{CHALLENGES.map((c) => <option key={c}>{c}</option>)}</Select></div>
+        </Card>
+
+        <Card className="p-5">
+          <label className="text-xs" style={{ color: MUTED }}>Which activities do you enjoy?</label>
+          <div className="mt-2"><CheckboxGroup options={ACTIVITIES} values={form.preferredActivities} onChange={(v) => set("preferredActivities", v)} /></div>
+        </Card>
+
+        <Card className="p-5">
+          <label className="text-xs" style={{ color: MUTED }}>How would you like your mistakes corrected?</label>
+          <div className="mt-2"><Select value={form.correctionPreference} onChange={(e) => set("correctionPreference", e.target.value)}><option value="">Select...</option>{CORRECTION_PREFS.map((c) => <option key={c}>{c}</option>)}</Select></div>
+        </Card>
+
+        <Btn onClick={save} disabled={saving} className="justify-center">
+          {saving ? <Loader2 size={14} className="animate-spin" /> : null} Save my profile
+        </Btn>
+      </div>
+    </div>
   );
 }
 
@@ -818,7 +1069,7 @@ function StudentDocs({ data, refresh, student }) {
       <SectionTitle sub="Notes from your teacher after class, and homework with instant AI feedback.">My document</SectionTitle>
       <Card className="p-5 mb-5">
         <h3 className="font-medium mb-3" style={{ fontFamily: "Georgia, serif" }}>Class notes</h3>
-        {doc.notes.length === 0 ? <p className="text-xs" style={{ color: MUTED }}>Your teacher hasn't added notes yet.</p> : <div className="space-y-2">{doc.notes.map((n) => <div key={n.id} className="text-sm rounded-lg p-3" style={{ backgroundColor: CARD_BEIGE }}><div className="text-xs mb-1" style={{ color: MUTED }}>{n.date}</div>{n.text}</div>)}</div>}
+        {doc.notes.length === 0 ? <p className="text-xs" style={{ color: MUTED }}>Your teacher hasn't added notes yet.</p> : <div className="space-y-2">{doc.notes.map((n) => <div key={n.id} className="text-sm rounded-lg p-3" style={{ backgroundColor: CARD_BEIGE }}><div className="text-xs mb-1" style={{ color: MUTED }}>{n.date}</div><RichDoc text={n.text} /></div>)}</div>}
       </Card>
       <Card className="p-5">
         <h3 className="font-medium mb-3" style={{ fontFamily: "Georgia, serif" }}>Homework</h3>
@@ -947,7 +1198,7 @@ function StudentIntensive({ data, refresh, student }) {
   return (
     <div>
       <SectionTitle sub={cohort ? `You're enrolled in ${cohort.name}.` : "Everything from the intensive course, plus your own tasks."}>Intensive classroom</SectionTitle>
-      <Card className="p-5 mb-5"><h3 className="font-medium mb-2" style={{ fontFamily: "Georgia, serif" }}>General class document</h3><div className="text-sm whitespace-pre-line" style={{ color: cohort?.generalDoc ? INK : MUTED }}>{cohort?.generalDoc || "Nothing posted yet."}</div></Card>
+      <Card className="p-5 mb-5"><h3 className="font-medium mb-2" style={{ fontFamily: "Georgia, serif" }}>General class document</h3>{cohort?.generalDoc ? <RichDoc text={cohort.generalDoc} /> : <p className="text-sm" style={{ color: MUTED }}>Nothing posted yet.</p>}</Card>
       <Card className="p-5">
         <h3 className="font-medium mb-3" style={{ fontFamily: "Georgia, serif" }}>My tasks</h3>
         {tasks.length === 0 ? <EmptyState text="No tasks assigned yet." /> : (
@@ -1014,7 +1265,7 @@ function StudentCourses({ data, refresh, student }) {
           <div className="mb-5"><Select value={selected} onChange={(e) => setSelected(e.target.value)}>{data.prerecordedCourses.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}</Select></div>
           {course && (
             <>
-              <Card className="p-5 mb-5"><h3 className="font-medium mb-2" style={{ fontFamily: "Georgia, serif" }}>Theory</h3><div className="text-sm whitespace-pre-line" style={{ color: course.theoryDoc ? INK : MUTED }}>{course.theoryDoc || "Coming soon."}</div></Card>
+              <Card className="p-5 mb-5"><h3 className="font-medium mb-2" style={{ fontFamily: "Georgia, serif" }}>Theory</h3>{course.theoryDoc ? <RichDoc text={course.theoryDoc} /> : <p className="text-sm" style={{ color: MUTED }}>Coming soon.</p>}</Card>
               <Card className="p-5">
                 <h3 className="font-medium mb-3" style={{ fontFamily: "Georgia, serif" }}>Tasks</h3>
                 {course.tasks.length === 0 ? <EmptyState text="No tasks yet." /> : (
@@ -1096,5 +1347,6 @@ export default function App() {
   }
   if (session.role === "teacher") return <TeacherApp data={data} refresh={refresh} onLogout={handleLogout} />;
   const student = data.students.find((s) => s.id === session.studentId);
+  if (!student) return null;
   return <StudentApp data={data} refresh={refresh} student={student} onLogout={handleLogout} />;
 }
