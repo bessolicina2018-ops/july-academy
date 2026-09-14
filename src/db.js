@@ -16,11 +16,12 @@ export async function fetchAll() {
     { data: progressRows },
     { data: notes },
     { data: homework },
-    { data: generalDoc },
+    { data: intensiveDocs },
     { data: intensiveTasks },
     { data: courses },
     { data: courseTasks },
     { data: courseSubs },
+    { data: studentProfileRows },
   ] = await Promise.all([
     supabase.from("students").select("*"),
     supabase.from("groups").select("*"),
@@ -31,11 +32,12 @@ export async function fetchAll() {
     supabase.from("progress").select("*"),
     supabase.from("notes").select("*").order("date", { ascending: false }),
     supabase.from("homework").select("*").order("date", { ascending: false }),
-    supabase.from("intensive_general_doc").select("*").eq("id", 1).maybeSingle(),
+    supabase.from("intensive_docs").select("*"),
     supabase.from("intensive_tasks").select("*"),
     supabase.from("courses").select("*"),
     supabase.from("course_tasks").select("*"),
     supabase.from("course_submissions").select("*"),
+    supabase.from("student_profiles").select("*"),
   ]);
 
   const curriculum = { A1: [], A2: [], B1: [], B2: [] };
@@ -65,10 +67,10 @@ export async function fetchAll() {
     })
   );
 
-  const intensiveCourse = { generalDoc: generalDoc?.content || "", students: {} };
+  const tasksByStudent = {};
   (intensiveTasks || []).forEach((t) => {
-    const bucket = (intensiveCourse.students[t.student_id] ??= { tasks: [] });
-    bucket.tasks.push({
+    const bucket = (tasksByStudent[t.student_id] ??= []);
+    bucket.push({
       id: t.id,
       title: t.title,
       instructions: t.instructions || "",
@@ -76,6 +78,18 @@ export async function fetchAll() {
       submissionText: t.submission_text || "",
       aiFeedback: t.ai_feedback || "",
     });
+  });
+
+  // Each intensive cohort is a Group the teacher created (e.g. "Intensive course 1").
+  // A student joins one via students.intensive_group_id.
+  const intensiveCourses = (groups || []).map((g) => {
+    const doc = (intensiveDocs || []).find((d) => d.group_id === g.id);
+    const cohortStudents = (students || []).filter((s) => s.intensive_group_id === g.id);
+    const studentsMap = {};
+    cohortStudents.forEach((s) => {
+      studentsMap[s.id] = { tasks: tasksByStudent[s.id] || [] };
+    });
+    return { id: g.id, name: g.name, level: g.level, generalDoc: doc?.content || "", students: studentsMap };
   });
 
   const prerecordedCourses = (courses || []).map((c) => {
@@ -94,6 +108,22 @@ export async function fetchAll() {
     return { id: c.id, title: c.title, theoryDoc: c.theory_doc || "", tasks, studentSubmissions };
   });
 
+  const studentProfiles = {};
+  (studentProfileRows || []).forEach((p) => {
+    studentProfiles[p.student_id] = {
+      nativeLanguage: p.native_language || "",
+      selfLevel: p.self_level || "",
+      whyLearning: p.why_learning || [],
+      mainGoal: p.main_goal || "",
+      topPriorities: p.top_priorities || [],
+      whereUsed: p.where_used || [],
+      biggestChallenge: p.biggest_challenge || "",
+      preferredActivities: p.preferred_activities || [],
+      correctionPreference: p.correction_preference || "",
+      completedAt: p.completed_at,
+    };
+  });
+
   return {
     students: (students || []).map((s) => ({
       id: s.id,
@@ -101,8 +131,10 @@ export async function fetchAll() {
       code: s.code,
       level: s.level,
       groupId: s.group_id,
-      enrolledIntensive: s.enrolled_intensive,
+      intensiveGroupId: s.intensive_group_id,
       profileId: s.profile_id,
+      email: s.email || "",
+      whatsapp: s.whatsapp || "",
     })),
     groups: groups || [],
     timetableSlots: (slots || []).map((s) => ({
@@ -125,8 +157,9 @@ export async function fetchAll() {
     curriculum,
     progress,
     personalDocs,
-    intensiveCourse,
+    intensiveCourses,
     prerecordedCourses,
+    studentProfiles,
   };
 }
 
@@ -141,11 +174,14 @@ export async function addStudent({ name, level, groupId }) {
 export async function removeStudent(id) {
   await supabase.from("students").delete().eq("id", id);
 }
-export async function setEnrolledIntensive(id, value) {
-  await supabase.from("students").update({ enrolled_intensive: value }).eq("id", id);
+export async function setIntensiveGroup(studentId, groupId) {
+  await supabase.from("students").update({ intensive_group_id: groupId || null }).eq("id", studentId);
 }
 export async function addGroup({ name, level }) {
   await supabase.from("groups").insert({ name, level });
+}
+export async function removeGroup(id) {
+  await supabase.from("groups").delete().eq("id", id);
 }
 
 export async function addSlot({ date, time, duration, label, audienceType, groupId, studentId }) {
@@ -208,6 +244,9 @@ export async function toggleProgress(studentId, itemId, currentlyDone) {
 export async function addNote(studentId, text) {
   await supabase.from("notes").insert({ student_id: studentId, text });
 }
+export async function updateNote(id, text) {
+  await supabase.from("notes").update({ text }).eq("id", id);
+}
 export async function assignHomework(studentId, title, instructions) {
   await supabase.from("homework").insert({ student_id: studentId, title, instructions });
 }
@@ -218,8 +257,8 @@ export async function submitHomework(id, submissionText, aiFeedback) {
     .eq("id", id);
 }
 
-export async function saveGeneralDoc(content) {
-  await supabase.from("intensive_general_doc").update({ content }).eq("id", 1);
+export async function saveIntensiveDoc(groupId, content) {
+  await supabase.from("intensive_docs").upsert({ group_id: groupId, content }, { onConflict: "group_id" });
 }
 export async function addIntensiveTask(studentId, title, instructions) {
   await supabase.from("intensive_tasks").insert({ student_id: studentId, title, instructions });
@@ -248,6 +287,27 @@ export async function submitCourseTask(taskId, studentId, submissionText, aiFeed
   await supabase.from("course_submissions").upsert(
     { task_id: taskId, student_id: studentId, submission_text: submissionText, ai_feedback: aiFeedback, status: "checked" },
     { onConflict: "task_id,student_id" }
+  );
+}
+
+export async function saveStudentProfile(studentId, fields) {
+  const { email, whatsapp, ...profileFields } = fields;
+  await supabase.from("students").update({ email: email || null, whatsapp: whatsapp || null }).eq("id", studentId);
+  await supabase.from("student_profiles").upsert(
+    {
+      student_id: studentId,
+      native_language: profileFields.nativeLanguage || null,
+      self_level: profileFields.selfLevel || null,
+      why_learning: profileFields.whyLearning || [],
+      main_goal: profileFields.mainGoal || null,
+      top_priorities: profileFields.topPriorities || [],
+      where_used: profileFields.whereUsed || [],
+      biggest_challenge: profileFields.biggestChallenge || null,
+      preferred_activities: profileFields.preferredActivities || [],
+      correction_preference: profileFields.correctionPreference || null,
+      completed_at: new Date().toISOString(),
+    },
+    { onConflict: "student_id" }
   );
 }
 
