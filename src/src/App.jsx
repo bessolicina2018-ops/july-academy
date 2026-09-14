@@ -395,6 +395,11 @@ function TeacherStudents({ data, refresh }) {
   const addStudent = async () => { if (!form.name.trim()) return; await db.addStudent(form); setForm({ name: "", level: "A1", groupId: "" }); setShowAdd(false); refresh(); };
   const addGroup = async () => { if (!groupForm.name.trim()) return; await db.addGroup(groupForm); setGroupForm({ name: "", level: "A1" }); setShowGroup(false); refresh(); };
   const removeStudent = async (id) => { await db.removeStudent(id); refresh(); };
+  const removeGroup = async (id) => {
+    if (!window.confirm("Delete this group? Students in it will become ungrouped (not deleted). Any timetable slots or intensive-course content tied to this group will be removed too.")) return;
+    await db.removeGroup(id);
+    refresh();
+  };
   const setIntensive = async (studentId, groupId) => { await db.setIntensiveGroup(studentId, groupId); refresh(); };
   const [profileStudent, setProfileStudent] = useState(null);
 
@@ -409,7 +414,12 @@ function TeacherStudents({ data, refresh }) {
       </div>
       {data.groups.length > 0 && (
         <div className="flex flex-wrap gap-2 mb-6">
-          {data.groups.map((g) => <span key={g.id} className="text-xs px-3 py-1 rounded-full" style={{ backgroundColor: CARD_BEIGE, color: INK }}>{g.name} · {g.level}</span>)}
+          {data.groups.map((g) => (
+            <span key={g.id} className="flex items-center gap-1.5 text-xs pl-3 pr-2 py-1 rounded-full" style={{ backgroundColor: CARD_BEIGE, color: INK }}>
+              {g.name} · {g.level}
+              <button onClick={() => removeGroup(g.id)} title="Delete group"><X size={12} color={MUTED} /></button>
+            </span>
+          ))}
         </div>
       )}
       {data.students.length === 0 ? <EmptyState text="No students yet. Add your first student to generate their access code." /> : (
@@ -572,10 +582,14 @@ function TeacherDocs({ data, refresh }) {
   const [note, setNote] = useState("");
   const [showTask, setShowTask] = useState(false);
   const [taskForm, setTaskForm] = useState({ title: "", instructions: "" });
+  const [editingNoteId, setEditingNoteId] = useState(null);
+  const [editDraft, setEditDraft] = useState("");
   const doc = data.personalDocs[selected] || { notes: [], homework: [] };
 
   const addNote = async () => { if (!note.trim()) return; await db.addNote(selected, note.trim()); setNote(""); refresh(); };
   const assign = async () => { if (!taskForm.title.trim()) return; await db.assignHomework(selected, taskForm.title, taskForm.instructions); setTaskForm({ title: "", instructions: "" }); setShowTask(false); refresh(); };
+  const startEdit = (n) => { setEditingNoteId(n.id); setEditDraft(n.text); };
+  const saveEdit = async () => { await db.updateNote(editingNoteId, editDraft); setEditingNoteId(null); refresh(); };
 
   return (
     <div>
@@ -589,7 +603,21 @@ function TeacherDocs({ data, refresh }) {
             <div className="mt-2"><Btn onClick={addNote}><Plus size={14} />Add note</Btn></div>
             <div className="mt-4 space-y-2">
               {doc.notes.length === 0 ? <p className="text-xs" style={{ color: MUTED }}>No notes yet.</p> : doc.notes.map((n) => (
-                <div key={n.id} className="text-sm rounded-lg p-3" style={{ backgroundColor: CARD_BEIGE }}><div className="text-xs mb-1" style={{ color: MUTED }}>{n.date}</div><RichDoc text={n.text} /></div>
+                <div key={n.id} className="text-sm rounded-lg p-3" style={{ backgroundColor: CARD_BEIGE }}>
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="text-xs" style={{ color: MUTED }}>{n.date}</div>
+                    {editingNoteId !== n.id && <button onClick={() => startEdit(n)} className="text-xs underline" style={{ color: GREEN }}>Edit</button>}
+                  </div>
+                  {editingNoteId === n.id ? (
+                    <div>
+                      <RichEditor value={editDraft} onChange={setEditDraft} minHeight={100} />
+                      <div className="mt-2 flex gap-2">
+                        <Btn onClick={saveEdit}>Save</Btn>
+                        <Btn variant="ghost" onClick={() => setEditingNoteId(null)}>Cancel</Btn>
+                      </div>
+                    </div>
+                  ) : <RichDoc text={n.text} />}
+                </div>
               ))}
             </div>
           </Card>
