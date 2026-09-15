@@ -4,18 +4,37 @@ export default async function handler(req, res) {
     return;
   }
 
-  const { word, level } = req.body || {};
+  const { word, level, category } = req.body || {};
   if (!word || !word.trim()) {
     res.status(400).json({ error: "Missing word" });
     return;
   }
 
-  const prompt = `You are a Spanish teacher creating a vocabulary flashcard for a ${level || "A1"}-level student.
+  let prompt;
+  if (category === "verb") {
+    prompt = `You are a Spanish teacher creating a verb-conjugation flashcard for a ${level || "A1"}-level student.
+
+Verb (infinitive): "${word}"
+
+Respond with ONLY a JSON object, no other text before or after, in exactly this shape:
+{"translation": "<short English meaning of the infinitive>", "example": "<a markdown table using | pipes, exactly two columns headed Pronoun and Present tense, one row each for yo, tú, él/ella, nosotros, vosotros, ellos/ellas, showing the present-tense conjugation>"}
+
+The "example" value must be a single string containing newline characters (\\n) between table rows, valid markdown table syntax.`;
+  } else if (category === "phrase") {
+    prompt = `You are a Spanish teacher creating a flashcard for a common useful phrase or expression, for a ${level || "A1"}-level student.
+
+Phrase or expression: "${word}"
+
+Respond with ONLY a JSON object, no other text before or after, in exactly this shape:
+{"translation": "<short natural English translation>", "example": "<one short example situation or sentence in Spanish showing how it's used, suitable for ${level || "A1"} level>"}`;
+  } else {
+    prompt = `You are a Spanish teacher creating a vocabulary flashcard for a ${level || "A1"}-level student.
 
 Word or expression: "${word}"
 
 Respond with ONLY a JSON object, no other text before or after, in exactly this shape:
 {"translation": "<short English translation>", "example": "<one natural, appropriately simple example sentence in Spanish using the word, suitable for ${level || "A1"} level>"}`;
+  }
 
   try {
     const r = await fetch("https://api.anthropic.com/v1/messages", {
