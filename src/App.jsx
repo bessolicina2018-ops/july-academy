@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   Calendar, FileText, Headphones, Layers, GraduationCap, Video, CheckCircle2,
   Circle, Plus, X, Send, Loader2, Users, LogOut, ChevronRight, Sparkles,
-  Trash2, Info, ChevronLeft, AlertCircle, BookOpen,
+  Trash2, Info, ChevronLeft, AlertCircle, BookOpen, Shield,
 } from "lucide-react";
 import { supabase } from "./supabaseClient";
 import * as db from "./db";
@@ -196,18 +196,21 @@ function RichEditor({ value, onChange, onBlur, placeholder, minHeight = 160 }) {
   const addDivider = () => onChange(value + (value.endsWith("\n") || !value ? "" : "\n") + "\n---\n");
   const insertTable = () => onChange(value + (value.endsWith("\n") || !value ? "" : "\n") + "\n| Column 1 | Column 2 |\n| --- | --- |\n|  |  |\n");
   const handleImagePick = () => fileInputRef.current?.click();
-  const handleFileChange = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const uploadImageAt = async (file, atPos) => {
     setUploading(true);
     try {
       const url = await db.uploadClassImage(file);
-      const el = ref.current;
-      const start = el ? el.selectionStart : value.length;
       const insertion = `\n![](${url})\n`;
-      onChange(value.slice(0, start) + insertion + value.slice(start));
+      onChange(value.slice(0, atPos) + insertion + value.slice(atPos));
     } catch (err) { alert("Image upload failed — please try again."); }
     setUploading(false);
+  };
+  const handleFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const el = ref.current;
+    const start = el ? el.selectionStart : value.length;
+    await uploadImageAt(file, start);
     e.target.value = "";
   };
   const handlePaste = (e) => {
@@ -219,6 +222,23 @@ function RichEditor({ value, onChange, onBlur, placeholder, minHeight = 160 }) {
         const el = ref.current;
         const start = el.selectionStart, end = el.selectionEnd;
         onChange(value.slice(0, start) + "\n" + md + "\n" + value.slice(end));
+        return;
+      }
+    }
+    const items = e.clipboardData?.items;
+    if (items) {
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.kind === "file" && item.type && item.type.startsWith("image/")) {
+          e.preventDefault();
+          const file = item.getAsFile();
+          if (file) {
+            const el = ref.current;
+            const start = el ? el.selectionStart : value.length;
+            uploadImageAt(file, start);
+          }
+          return;
+        }
       }
     }
   };
@@ -245,7 +265,7 @@ function RichEditor({ value, onChange, onBlur, placeholder, minHeight = 160 }) {
         className="w-full rounded-lg px-3 py-2 text-sm bg-white outline-none resize-y"
         style={{ border: `1px solid ${BORDER}`, color: INK, minHeight, fontFamily: "ui-monospace, monospace" }}
       />
-      <p className="text-[11px] mt-1" style={{ color: MUTED }}>Tip: you can paste a table straight from Google Docs or Sheets — it'll convert automatically.</p>
+      <p className="text-[11px] mt-1" style={{ color: MUTED }}>Tip: you can paste a table straight from Google Docs or Sheets, or paste (Ctrl/Cmd+V) a copied image directly — both convert automatically.</p>
       <div className="mt-2 rounded-lg p-3" style={{ backgroundColor: CARD_BEIGE }}>
         <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: MUTED, letterSpacing: "0.05em" }}>Preview</div>
         {value ? <RichDoc text={value} /> : <p className="text-xs" style={{ color: MUTED }}>Nothing written yet.</p>}
@@ -328,14 +348,16 @@ function LoginScreen({ onLogin }) {
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const submitTeacher = async () => {
     setError(""); setLoading(true);
     try {
-      const user = teacherTab === "signup" ? await db.teacherSignUp(email, password, name) : await db.teacherSignIn(email, password);
-      onLogin({ role: "teacher", userId: user.id });
+      const user = teacherTab === "signup" ? await db.teacherSignUp(email, password, name, inviteCode) : await db.teacherSignIn(email, password);
+      const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
+      onLogin({ role: "teacher", isAdmin: profile?.role === "admin", userId: user.id });
     } catch (e) { setError(e.message || "Something went wrong."); }
     setLoading(false);
   };
@@ -385,6 +407,9 @@ function LoginScreen({ onLogin }) {
             )}
             <div className="mb-3"><label className="text-xs" style={{ color: MUTED }}>Email</label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></div>
             <div className="mb-3"><label className="text-xs" style={{ color: MUTED }}>Password</label><Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submitTeacher()} /></div>
+            {teacherTab === "signup" && (
+              <div className="mb-3"><label className="text-xs" style={{ color: MUTED }}>Invite code (from your school admin)</label><Input value={inviteCode} onChange={(e) => setInviteCode(e.target.value)} /></div>
+            )}
             {error && <p className="text-xs mb-3" style={{ color: "#b3432b" }}>{error}</p>}
             <Btn onClick={submitTeacher} disabled={loading} className="w-full justify-center">
               {loading ? <Loader2 size={14} className="animate-spin" /> : null} {teacherTab === "signup" ? "Create account" : "Enter"}
@@ -447,7 +472,7 @@ function Shell({ roleLabel, tabs, active, setActive, onLogout, children }) {
 /* ================================================================ */
 /* TEACHER VIEW                                                      */
 /* ================================================================ */
-function TeacherApp({ data, refresh, onLogout }) {
+function TeacherApp({ data, refresh, onLogout, isAdmin }) {
   const [active, setActive] = useState("students");
   const tabs = [
     { key: "students", label: "Students & groups", icon: Users },
@@ -459,9 +484,10 @@ function TeacherApp({ data, refresh, onLogout }) {
     { key: "intensive", label: "Intensive course", icon: GraduationCap },
     { key: "prerecorded", label: "Pre-recorded courses", icon: Video },
     { key: "guides", label: "Grammar guides", icon: BookOpen },
+    ...(isAdmin ? [{ key: "access", label: "Manage access", icon: Shield }] : []),
   ];
   return (
-    <Shell roleLabel="Teacher" tabs={tabs} active={active} setActive={setActive} onLogout={onLogout}>
+    <Shell roleLabel={isAdmin ? "Admin" : "Teacher"} tabs={tabs} active={active} setActive={setActive} onLogout={onLogout}>
       {active === "students" && <TeacherStudents data={data} refresh={refresh} />}
       {active === "timetable" && <TeacherTimetable data={data} refresh={refresh} />}
       {active === "docs" && <TeacherDocs data={data} refresh={refresh} />}
@@ -471,6 +497,7 @@ function TeacherApp({ data, refresh, onLogout }) {
       {active === "intensive" && <TeacherIntensive data={data} refresh={refresh} />}
       {active === "prerecorded" && <TeacherPrerecorded data={data} refresh={refresh} />}
       {active === "guides" && <TeacherGrammarGuides data={data} refresh={refresh} />}
+      {active === "access" && <TeacherManageAccess data={data} refresh={refresh} />}
     </Shell>
   );
 }
@@ -1327,7 +1354,7 @@ function StudentProfileForm({ data, refresh, student, onDone }) {
 function StudentTimetable({ data, refresh, student }) {
   const now = new Date();
   const nowKey = now.toISOString().slice(0, 10) + now.toTimeString().slice(0, 5);
-  const mine = data.timetableSlots.filter((s) => s.audience === `student:${student.id}` || (student.groupId && s.audience === `group:${student.groupId}`)).sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+  const mine = data.timetableSlots.filter((s) => s.audience === `student:${student.id}` || (student.groupId && s.audience === `group:${student.groupId}`) || (student.intensiveGroupId && s.audience === `group:${student.intensiveGroupId}`)).sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
   const past = mine.filter((s) => s.date + s.time < nowKey);
   const future = mine.filter((s) => s.date + s.time >= nowKey);
   const openSlots = data.timetableSlots.filter((s) => s.audience === "open" && s.status === "available").sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
@@ -1633,6 +1660,53 @@ function StudentCourses({ data, refresh, student }) {
   );
 }
 
+function TeacherManageAccess({ data, refresh }) {
+  const [newCode, setNewCode] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [genError, setGenError] = useState("");
+
+  const create = async () => {
+    setCreating(true); setGenError("");
+    try {
+      const code = await db.createTeacherInvite();
+      setNewCode(code);
+      refresh();
+    } catch (e) { setGenError("Couldn't create an invite — try again."); }
+    setCreating(false);
+  };
+
+  return (
+    <div>
+      <SectionTitle sub="Only you (as admin) can bring new teachers onto the platform. No one can create a teacher account without a code you generate here.">Manage access</SectionTitle>
+      <Card className="p-5 mb-5">
+        <h3 className="font-medium mb-2" style={{ fontFamily: "Georgia, serif" }}>Invite a new teacher</h3>
+        <p className="text-sm mb-3" style={{ color: MUTED }}>Generate a one-time code, then share it privately with the person joining (along with the site link). They'll enter it when creating their account, under "I'm the teacher" → "Create account."</p>
+        <Btn onClick={create} disabled={creating}>{creating ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}Generate invite code</Btn>
+        {genError && <p className="text-xs mt-2" style={{ color: "#b3432b" }}>{genError}</p>}
+        {newCode && (
+          <div className="mt-3 rounded-lg p-3" style={{ backgroundColor: "#eef6ee" }}>
+            <div className="text-xs mb-1" style={{ color: MUTED }}>New code — copy and share it now:</div>
+            <div className="font-mono text-lg" style={{ color: INK }}>{newCode}</div>
+          </div>
+        )}
+      </Card>
+      <Card className="p-5">
+        <h3 className="font-medium mb-3" style={{ fontFamily: "Georgia, serif" }}>Invite history</h3>
+        {data.teacherInvites.length === 0 ? <EmptyState text="No invites created yet." /> : (
+          <div className="space-y-2">
+            {data.teacherInvites.map((inv) => (
+              <div key={inv.code} className="flex items-center justify-between text-sm rounded-lg p-3" style={{ backgroundColor: CARD_BEIGE }}>
+                <span className="font-mono">{inv.code}</span>
+                <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: inv.used ? "#dcefdc" : "white", color: inv.used ? "#204d2c" : MUTED }}>{inv.used ? "used" : "not used yet"}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
 function StudentGrammarGuides({ data }) {
   const [selected, setSelected] = useState(data.grammarGuides[0]?.id || "");
   const guide = data.grammarGuides.find((g) => g.id === selected);
@@ -1671,8 +1745,8 @@ export default function App() {
       if (authSession) {
         const uid = authSession.user.id;
         const { data: profile } = await supabase.from("profiles").select("*").eq("id", uid).maybeSingle();
-        if (profile?.role === "teacher") {
-          setSession({ role: "teacher", userId: uid });
+        if (profile?.role === "teacher" || profile?.role === "admin") {
+          setSession({ role: "teacher", isAdmin: profile.role === "admin", userId: uid });
         } else if (profile?.role === "student") {
           const { data: student } = await supabase.from("students").select("*").eq("profile_id", uid).maybeSingle();
           if (student) setSession({ role: "student", studentId: student.id, userId: uid });
@@ -1693,7 +1767,7 @@ export default function App() {
   if (!data) {
     return <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: CREAM }}><Loader2 className="animate-spin" color={GREEN} /></div>;
   }
-  if (session.role === "teacher") return <TeacherApp data={data} refresh={refresh} onLogout={handleLogout} />;
+  if (session.role === "teacher") return <TeacherApp data={data} refresh={refresh} onLogout={handleLogout} isAdmin={session.isAdmin} />;
   const student = data.students.find((s) => s.id === session.studentId);
   if (!student) return null;
   return <StudentApp data={data} refresh={refresh} student={student} onLogout={handleLogout} />;

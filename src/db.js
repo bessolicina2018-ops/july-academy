@@ -24,6 +24,7 @@ export async function fetchAll() {
     { data: studentProfileRows },
     { data: flashcardAssignments },
     { data: grammarGuides },
+    { data: teacherInvites },
   ] = await Promise.all([
     supabase.from("students").select("*"),
     supabase.from("groups").select("*"),
@@ -42,6 +43,7 @@ export async function fetchAll() {
     supabase.from("student_profiles").select("*"),
     supabase.from("flashcard_assignments").select("*"),
     supabase.from("grammar_guides").select("*").order("position"),
+    supabase.from("teacher_invites").select("*").order("created_at", { ascending: false }),
   ]);
 
   const curriculum = { A1: [], A2: [], B1: [], B2: [] };
@@ -176,6 +178,7 @@ export async function fetchAll() {
     prerecordedCourses,
     studentProfiles,
     grammarGuides: (grammarGuides || []).map((g) => ({ id: g.id, title: g.title, content: g.content || "" })),
+    teacherInvites: (teacherInvites || []).map((t) => ({ code: t.code, used: t.used, createdAt: t.created_at })),
   };
 }
 
@@ -393,14 +396,26 @@ export async function uploadClassImage(file) {
 /* ---------------------------------------------------------------- */
 /* Auth helpers                                                       */
 /* ---------------------------------------------------------------- */
-export async function teacherSignUp(email, password, name) {
+export async function teacherSignUp(email, password, name, inviteCode) {
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
-    options: { data: { role: "teacher", name } },
+    options: { data: { name } }, // no role here anymore — a fresh signup is always just a "student" role until an invite promotes it
   });
   if (error) throw error;
+
+  const { data: redeemed, error: redeemError } = await supabase.rpc("redeem_teacher_invite", { p_code: (inviteCode || "").trim() });
+  if (redeemError || !redeemed) {
+    throw new Error("That invite code isn't valid or has already been used. Ask your school admin for a new one.");
+  }
   return data.user;
+}
+
+export async function createTeacherInvite() {
+  const code = Math.random().toString(36).slice(2, 6).toUpperCase() + Math.random().toString(36).slice(2, 6).toUpperCase();
+  const { error } = await supabase.from("teacher_invites").insert({ code });
+  if (error) throw error;
+  return code;
 }
 export async function teacherSignIn(email, password) {
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
