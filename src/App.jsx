@@ -99,6 +99,30 @@ function renderInline(text) {
   const parts = (text || "").split(/(\*\*[^*]+\*\*)/g);
   return parts.map((part, i) => (/^\*\*[^*]+\*\*$/.test(part) ? <strong key={i}>{part.slice(2, -2)}</strong> : <React.Fragment key={i}>{part}</React.Fragment>));
 }
+function parseTableRow(line) {
+  let cells = line.trim().split("|");
+  if (cells[0].trim() === "") cells.shift();
+  if (cells.length && cells[cells.length - 1].trim() === "") cells.pop();
+  return cells.map((c) => c.trim());
+}
+function isTableSeparator(line) {
+  return /^\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?$/.test((line || "").trim());
+}
+function htmlToMarkdownTable(html) {
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  const table = doc.querySelector("table");
+  if (!table) return null;
+  const rows = Array.from(table.querySelectorAll("tr"))
+    .map((tr) => Array.from(tr.querySelectorAll("th,td")).map((cell) => cell.textContent.trim().replace(/\|/g, "\\|").replace(/\s+/g, " ")))
+    .filter((r) => r.length > 0);
+  if (rows.length === 0) return null;
+  const colCount = Math.max(...rows.map((r) => r.length));
+  const pad = (r) => { const copy = [...r]; while (copy.length < colCount) copy.push(""); return copy; };
+  const header = pad(rows[0]);
+  const sep = header.map(() => "---");
+  const body = rows.slice(1).map(pad);
+  return ["| " + header.join(" | ") + " |", "| " + sep.join(" | ") + " |", ...body.map((r) => "| " + r.join(" | ") + " |")].join("\n");
+}
 function RichDoc({ text, className = "" }) {
   const lines = (text || "").split("\n");
   const elements = [];
@@ -106,21 +130,51 @@ function RichDoc({ text, className = "" }) {
   const flushList = () => {
     if (list.length) { elements.push(<ul key={"l" + elements.length} className="list-disc pl-5 my-1 space-y-0.5">{list.map((li, i) => <li key={i}>{renderInline(li)}</li>)}</ul>); list = []; }
   };
-  lines.forEach((line, i) => {
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
     const t = line.trim();
-    if (/^---+$/.test(t)) { flushList(); elements.push(<hr key={"h" + i} className="my-3" style={{ borderColor: BORDER }} />); return; }
-    if (/^##\s+/.test(t)) { flushList(); elements.push(<h4 key={"h2" + i} className="text-sm font-semibold mt-3 mb-1" style={{ fontFamily: "Georgia, serif", color: INK }}>{renderInline(t.replace(/^##\s+/, ""))}</h4>); return; }
-    if (/^#\s+/.test(t)) { flushList(); elements.push(<h3 key={"h1" + i} className="text-base font-semibold mt-3 mb-1" style={{ fontFamily: "Georgia, serif", color: INK }}>{renderInline(t.replace(/^#\s+/, ""))}</h3>); return; }
-    if (/^[-*]\s+/.test(t)) { list.push(t.replace(/^[-*]\s+/, "")); return; }
+
+    const imgMatch = t.match(/^!\[([^\]]*)\]\(([^)]+)\)$/);
+    if (imgMatch) {
+      flushList();
+      elements.push(<img key={"img" + i} src={imgMatch[2]} alt={imgMatch[1]} className="max-w-full rounded-lg my-2" />);
+      i++; continue;
+    }
+
+    if (/^\|.*\|$/.test(t) && isTableSeparator(lines[i + 1])) {
+      flushList();
+      const headerCells = parseTableRow(t);
+      let r = i + 2;
+      const bodyRows = [];
+      while (r < lines.length && /^\|.*\|$/.test(lines[r].trim())) { bodyRows.push(parseTableRow(lines[r])); r++; }
+      elements.push(
+        <div key={"tbl" + i} className="overflow-x-auto my-2">
+          <table className="text-sm border-collapse w-full">
+            <thead><tr>{headerCells.map((c, ci) => <th key={ci} className="text-left px-2 py-1.5 font-semibold" style={{ borderBottom: `2px solid ${BORDER}` }}>{renderInline(c)}</th>)}</tr></thead>
+            <tbody>{bodyRows.map((row, ri) => <tr key={ri}>{row.map((c, ci) => <td key={ci} className="px-2 py-1.5" style={{ borderBottom: `1px solid ${BORDER}` }}>{renderInline(c)}</td>)}</tr>)}</tbody>
+          </table>
+        </div>
+      );
+      i = r; continue;
+    }
+
+    if (/^---+$/.test(t)) { flushList(); elements.push(<hr key={"h" + i} className="my-3" style={{ borderColor: BORDER }} />); i++; continue; }
+    if (/^##\s+/.test(t)) { flushList(); elements.push(<h4 key={"h2" + i} className="text-sm font-semibold mt-3 mb-1" style={{ fontFamily: "Georgia, serif", color: INK }}>{renderInline(t.replace(/^##\s+/, ""))}</h4>); i++; continue; }
+    if (/^#\s+/.test(t)) { flushList(); elements.push(<h3 key={"h1" + i} className="text-base font-semibold mt-3 mb-1" style={{ fontFamily: "Georgia, serif", color: INK }}>{renderInline(t.replace(/^#\s+/, ""))}</h3>); i++; continue; }
+    if (/^[-*]\s+/.test(t)) { list.push(t.replace(/^[-*]\s+/, "")); i++; continue; }
     flushList();
-    if (t === "") { elements.push(<div key={"b" + i} className="h-2" />); return; }
+    if (t === "") { elements.push(<div key={"b" + i} className="h-2" />); i++; continue; }
     elements.push(<p key={"p" + i} className="mb-1">{renderInline(line)}</p>);
-  });
+    i++;
+  }
   flushList();
   return <div className={"text-sm leading-relaxed " + className} style={{ color: INK }}>{elements}</div>;
 }
 function RichEditor({ value, onChange, onBlur, placeholder, minHeight = 160 }) {
   const ref = useRef(null);
+  const fileInputRef = useRef(null);
+  const [uploading, setUploading] = useState(false);
   const wrapSelection = (marker) => {
     const el = ref.current;
     if (!el) return;
@@ -140,6 +194,34 @@ function RichEditor({ value, onChange, onBlur, placeholder, minHeight = 160 }) {
     requestAnimationFrame(() => el.focus());
   };
   const addDivider = () => onChange(value + (value.endsWith("\n") || !value ? "" : "\n") + "\n---\n");
+  const insertTable = () => onChange(value + (value.endsWith("\n") || !value ? "" : "\n") + "\n| Column 1 | Column 2 |\n| --- | --- |\n|  |  |\n");
+  const handleImagePick = () => fileInputRef.current?.click();
+  const handleFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const url = await db.uploadClassImage(file);
+      const el = ref.current;
+      const start = el ? el.selectionStart : value.length;
+      const insertion = `\n![](${url})\n`;
+      onChange(value.slice(0, start) + insertion + value.slice(start));
+    } catch (err) { alert("Image upload failed — please try again."); }
+    setUploading(false);
+    e.target.value = "";
+  };
+  const handlePaste = (e) => {
+    const html = e.clipboardData?.getData("text/html");
+    if (html && /<table/i.test(html)) {
+      const md = htmlToMarkdownTable(html);
+      if (md) {
+        e.preventDefault();
+        const el = ref.current;
+        const start = el.selectionStart, end = el.selectionEnd;
+        onChange(value.slice(0, start) + "\n" + md + "\n" + value.slice(end));
+      }
+    }
+  };
   const tbBtn = "text-xs px-2 py-1 rounded";
   return (
     <div>
@@ -149,16 +231,21 @@ function RichEditor({ value, onChange, onBlur, placeholder, minHeight = 160 }) {
         <button type="button" onClick={() => prefixLine("## ")} className={tbBtn} style={{ border: `1px solid ${BORDER}` }}>Subtitle</button>
         <button type="button" onClick={() => prefixLine("- ")} className={tbBtn} style={{ border: `1px solid ${BORDER}` }}>• List</button>
         <button type="button" onClick={addDivider} className={tbBtn} style={{ border: `1px solid ${BORDER}` }}>— Divider</button>
+        <button type="button" onClick={insertTable} className={tbBtn} style={{ border: `1px solid ${BORDER}` }}>▦ Table</button>
+        <button type="button" onClick={handleImagePick} disabled={uploading} className={tbBtn} style={{ border: `1px solid ${BORDER}` }}>{uploading ? <Loader2 size={12} className="animate-spin inline" /> : "🖼 Image"}</button>
+        <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
       </div>
       <textarea
         ref={ref}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onBlur={onBlur}
+        onPaste={handlePaste}
         placeholder={placeholder}
         className="w-full rounded-lg px-3 py-2 text-sm bg-white outline-none resize-y"
         style={{ border: `1px solid ${BORDER}`, color: INK, minHeight, fontFamily: "ui-monospace, monospace" }}
       />
+      <p className="text-[11px] mt-1" style={{ color: MUTED }}>Tip: you can paste a table straight from Google Docs or Sheets — it'll convert automatically.</p>
       <div className="mt-2 rounded-lg p-3" style={{ backgroundColor: CARD_BEIGE }}>
         <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: MUTED, letterSpacing: "0.05em" }}>Preview</div>
         {value ? <RichDoc text={value} /> : <p className="text-xs" style={{ color: MUTED }}>Nothing written yet.</p>}
@@ -805,9 +892,24 @@ function TeacherCurriculum({ data, refresh }) {
   const [level, setLevel] = useState("A1");
   const [studentId, setStudentId] = useState(data.students[0]?.id || "");
   const [newItem, setNewItem] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [genError, setGenError] = useState("");
+
   const addItem = async () => { if (!newItem.trim()) return; await db.addCurriculumItem(level, newItem.trim()); setNewItem(""); refresh(); };
+  const removeItem = async (id) => { await db.removeCurriculumItem(id); refresh(); };
   const toggle = async (itemId) => { if (!studentId) return; const done = !!data.progress[studentId]?.[itemId]; await db.toggleProgress(studentId, itemId, done); refresh(); };
   const progress = data.progress[studentId] || {};
+
+  const generate = async () => {
+    setGenerating(true); setGenError("");
+    try {
+      const items = await db.generateCurriculumAI(level);
+      if (items.length) await db.addCurriculumItemsBulk(level, items);
+      refresh();
+    } catch (e) { setGenError("Couldn't generate a curriculum — try again in a moment."); }
+    setGenerating(false);
+  };
+
   return (
     <div>
       <SectionTitle sub="Define what each level covers, then track each student's progress through it.">Curriculum</SectionTitle>
@@ -815,21 +917,34 @@ function TeacherCurriculum({ data, refresh }) {
         {LEVELS.map((l) => <button key={l} onClick={() => setLevel(l)} className="px-3 py-1.5 rounded-full text-sm" style={{ backgroundColor: level === l ? GREEN : CARD_BEIGE, color: level === l ? "white" : INK }}>{l}</button>)}
       </div>
       <Card className="p-5 mb-5">
-        <div className="flex gap-2 mb-4">
-          <Input value={newItem} onChange={(e) => setNewItem(e.target.value)} placeholder={`Add content item to ${level}`} />
-          <Btn onClick={addItem}><Plus size={14} /></Btn>
+        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+          <div className="flex gap-2 flex-1">
+            <Input value={newItem} onChange={(e) => setNewItem(e.target.value)} placeholder={`Add content item to ${level}`} />
+            <Btn onClick={addItem}><Plus size={14} /></Btn>
+          </div>
+          <Btn variant="ghost" onClick={generate} disabled={generating}>
+            {generating ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />} Generate {level} curriculum with AI
+          </Btn>
         </div>
+        {genError && <p className="text-xs mb-3" style={{ color: "#b3432b" }}>{genError}</p>}
         {data.students.length > 0 && (
           <div className="mb-3"><label className="text-xs" style={{ color: MUTED }}>Mark progress for:</label><Select value={studentId} onChange={(e) => setStudentId(e.target.value)}>{data.students.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</Select></div>
         )}
-        <div className="space-y-1.5">
-          {(data.curriculum[level] || []).map((item) => (
-            <button key={item.id} onClick={() => toggle(item.id)} className="w-full flex items-center gap-2 text-sm text-left px-2 py-1.5 rounded-lg hover:bg-black/[0.02]">
-              {progress[item.id] ? <CheckCircle2 size={16} color={GREEN} /> : <Circle size={16} color={MUTED} />}
-              <span style={{ color: progress[item.id] ? INK : MUTED }}>{item.name}</span>
-            </button>
-          ))}
-        </div>
+        {(data.curriculum[level] || []).length === 0 ? (
+          <EmptyState text="No curriculum items for this level yet — add some, or generate a starting outline with AI." />
+        ) : (
+          <div className="space-y-1.5">
+            {(data.curriculum[level] || []).map((item) => (
+              <div key={item.id} className="w-full flex items-center gap-2 text-sm px-2 py-1.5 rounded-lg hover:bg-black/[0.02]">
+                <button onClick={() => toggle(item.id)} className="flex items-center gap-2 flex-1 text-left">
+                  {progress[item.id] ? <CheckCircle2 size={16} color={GREEN} /> : <Circle size={16} color={MUTED} />}
+                  <span style={{ color: progress[item.id] ? INK : MUTED }}>{item.name}</span>
+                </button>
+                <button onClick={() => removeItem(item.id)}><X size={14} color={MUTED} /></button>
+              </div>
+            ))}
+          </div>
+        )}
       </Card>
     </div>
   );
@@ -1153,8 +1268,10 @@ function StudentDocs({ data, refresh, student }) {
   const submit = async (hwId) => {
     const hw = doc.homework.find((h) => h.id === hwId);
     const blanks = countBlanks(hw.instructions);
-    const text = blanks > 0 ? fillBlanksIntoText(hw.instructions, blankAnswers[hwId] || []) : drafts[hwId];
-    const hasContent = blanks > 0 ? (blankAnswers[hwId] || []).some((v) => (v || "").trim()) : (text || "").trim();
+    const extra = (drafts[hwId] || "").trim();
+    const blanksText = blanks > 0 ? fillBlanksIntoText(hw.instructions, blankAnswers[hwId] || []) : "";
+    const text = blanks > 0 ? (extra ? blanksText + "\n\n" + extra : blanksText) : extra;
+    const hasContent = blanks > 0 ? ((blankAnswers[hwId] || []).some((v) => (v || "").trim()) || extra) : extra;
     if (!hasContent) return;
     setLoadingId(hwId); setErrId(null);
     try {
@@ -1185,13 +1302,12 @@ function StudentDocs({ data, refresh, student }) {
                   <><p className="text-xs mt-2 italic whitespace-pre-wrap">"{h.submissionText}"</p><Feedback text={h.aiFeedback} /></>
                 ) : (
                   <>
-                    {blanks > 0 ? (
+                    {blanks > 0 && (
                       <div className="mt-2 rounded-lg p-3 bg-white">
                         <BlankWorksheet text={h.instructions} values={blankAnswers[h.id] || []} onChange={(idx, val) => setBlank(h.id, idx, val)} />
                       </div>
-                    ) : (
-                      <Textarea className="mt-2" value={drafts[h.id] ?? ""} onChange={(e) => setDrafts({ ...drafts, [h.id]: e.target.value })} placeholder="Write your answer in Spanish..." />
                     )}
+                    <Textarea className="mt-2" value={drafts[h.id] ?? ""} onChange={(e) => setDrafts({ ...drafts, [h.id]: e.target.value })} placeholder={blanks > 0 ? "Anything else to answer — translations, open questions, multiple choice, etc." : "Write your answer in Spanish..."} />
                     <div className="mt-2 flex items-center gap-2">
                       <Btn onClick={() => submit(h.id)} disabled={loadingId === h.id}>{loadingId === h.id ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} Submit for AI feedback</Btn>
                       {errId === h.id && <span className="text-xs flex items-center gap-1" style={{ color: "#b3432b" }}><AlertCircle size={13} />Couldn't get feedback, try again.</span>}
@@ -1287,8 +1403,10 @@ function StudentIntensive({ data, refresh, student }) {
   const submit = async (taskId) => {
     const t = tasks.find((x) => x.id === taskId);
     const blanks = countBlanks(t.instructions);
-    const text = blanks > 0 ? fillBlanksIntoText(t.instructions, blankAnswers[taskId] || []) : drafts[taskId];
-    const hasContent = blanks > 0 ? (blankAnswers[taskId] || []).some((v) => (v || "").trim()) : (text || "").trim();
+    const extra = (drafts[taskId] || "").trim();
+    const blanksText = blanks > 0 ? fillBlanksIntoText(t.instructions, blankAnswers[taskId] || []) : "";
+    const text = blanks > 0 ? (extra ? blanksText + "\n\n" + extra : blanksText) : extra;
+    const hasContent = blanks > 0 ? ((blankAnswers[taskId] || []).some((v) => (v || "").trim()) || extra) : extra;
     if (!hasContent) return;
     setLoadingId(taskId);
     try { const feedback = await getAIFeedback({ instructions: t.instructions, submissionText: text, level: student.level }); await db.submitIntensiveTask(taskId, text, feedback); refresh(); } catch (e) {}
@@ -1311,13 +1429,12 @@ function StudentIntensive({ data, refresh, student }) {
                 {blanks === 0 && <p className="text-xs mt-1" style={{ color: MUTED }}>{t.instructions}</p>}
                 {t.status === "checked" ? (<><p className="text-xs mt-2 italic whitespace-pre-wrap">"{t.submissionText}"</p><Feedback text={t.aiFeedback} /></>) : (
                   <>
-                    {blanks > 0 ? (
+                    {blanks > 0 && (
                       <div className="mt-2 rounded-lg p-3 bg-white">
                         <BlankWorksheet text={t.instructions} values={blankAnswers[t.id] || []} onChange={(idx, val) => setBlank(t.id, idx, val)} />
                       </div>
-                    ) : (
-                      <Textarea className="mt-2" value={drafts[t.id] ?? ""} onChange={(e) => setDrafts({ ...drafts, [t.id]: e.target.value })} placeholder="Write your answer, or leave blank and just mark as done" />
                     )}
+                    <Textarea className="mt-2" value={drafts[t.id] ?? ""} onChange={(e) => setDrafts({ ...drafts, [t.id]: e.target.value })} placeholder={blanks > 0 ? "Anything else to answer — translations, open questions, etc." : "Write your answer, or leave blank and just mark as done"} />
                     <div className="mt-2 flex gap-2">
                       <Btn onClick={() => submit(t.id)} disabled={loadingId === t.id}>{loadingId === t.id ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}Submit for AI feedback</Btn>
                       <Btn variant="ghost" onClick={() => markDone(t.id)}><CheckCircle2 size={14} />Mark done</Btn>
@@ -1350,8 +1467,10 @@ function StudentCourses({ data, refresh, student }) {
     if (!course) return;
     const task = course.tasks.find((t) => t.id === taskId);
     const blanks = countBlanks(task.instructions);
-    const text = blanks > 0 ? fillBlanksIntoText(task.instructions, blankAnswers[taskId] || []) : drafts[taskId];
-    const hasContent = blanks > 0 ? (blankAnswers[taskId] || []).some((v) => (v || "").trim()) : (text || "").trim();
+    const extra = (drafts[taskId] || "").trim();
+    const blanksText = blanks > 0 ? fillBlanksIntoText(task.instructions, blankAnswers[taskId] || []) : "";
+    const text = blanks > 0 ? (extra ? blanksText + "\n\n" + extra : blanksText) : extra;
+    const hasContent = blanks > 0 ? ((blankAnswers[taskId] || []).some((v) => (v || "").trim()) || extra) : extra;
     if (!hasContent) return;
     setLoadingId(taskId);
     try { const feedback = await getAIFeedback({ instructions: task.instructions, submissionText: text, level: student.level }); await db.submitCourseTask(taskId, student.id, text, feedback); refresh(); } catch (e) {}
@@ -1379,13 +1498,12 @@ function StudentCourses({ data, refresh, student }) {
                           {blanks === 0 && <p className="text-xs mt-1" style={{ color: MUTED }}>{t.instructions}</p>}
                           {sub ? (<><p className="text-xs mt-2 italic whitespace-pre-wrap">"{sub.submissionText}"</p><Feedback text={sub.aiFeedback} /></>) : (
                             <>
-                              {blanks > 0 ? (
+                              {blanks > 0 && (
                                 <div className="mt-2 rounded-lg p-3 bg-white">
                                   <BlankWorksheet text={t.instructions} values={blankAnswers[t.id] || []} onChange={(idx, val) => setBlank(t.id, idx, val)} />
                                 </div>
-                              ) : (
-                                <Textarea className="mt-2" value={drafts[t.id] ?? ""} onChange={(e) => setDrafts({ ...drafts, [t.id]: e.target.value })} placeholder="Your answer..." />
                               )}
+                              <Textarea className="mt-2" value={drafts[t.id] ?? ""} onChange={(e) => setDrafts({ ...drafts, [t.id]: e.target.value })} placeholder={blanks > 0 ? "Anything else to answer — translations, open questions, etc." : "Your answer..."} />
                               <div className="mt-2"><Btn onClick={() => submit(t.id)} disabled={loadingId === t.id}>{loadingId === t.id ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}Submit for AI feedback</Btn></div>
                             </>
                           )}
