@@ -1297,6 +1297,9 @@ function StudentProfileForm({ data, refresh, student, onDone }) {
         {profile?.completedAt ? "My profile" : "Tell us about yourself"}
       </SectionTitle>
       <div className="space-y-5 max-w-2xl">
+        <div className="text-xs rounded-lg p-3" style={{ backgroundColor: "#eef6ee", border: "1px solid #cfe6cf", color: "#204d2c" }}>
+          This information is only visible to your teacher, and is used to personalize your lessons — it's never shared with anyone else. If you're under 14, please check with a parent or guardian before filling this in.
+        </div>
         <Card className="p-5 space-y-3">
           <div><label className="text-xs" style={{ color: MUTED }}>Email</label><Input type="email" value={form.email} onChange={(e) => set("email", e.target.value)} /></div>
           <div><label className="text-xs" style={{ color: MUTED }}>WhatsApp number</label><Input value={form.whatsapp} onChange={(e) => set("whatsapp", e.target.value)} /></div>
