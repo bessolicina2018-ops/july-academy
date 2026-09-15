@@ -23,6 +23,7 @@ export async function fetchAll() {
     { data: courseSubs },
     { data: studentProfileRows },
     { data: flashcardAssignments },
+    { data: grammarGuides },
   ] = await Promise.all([
     supabase.from("students").select("*"),
     supabase.from("groups").select("*"),
@@ -40,6 +41,7 @@ export async function fetchAll() {
     supabase.from("course_submissions").select("*"),
     supabase.from("student_profiles").select("*"),
     supabase.from("flashcard_assignments").select("*"),
+    supabase.from("grammar_guides").select("*").order("position"),
   ]);
 
   const curriculum = { A1: [], A2: [], B1: [], B2: [] };
@@ -173,6 +175,7 @@ export async function fetchAll() {
     intensiveCourses,
     prerecordedCourses,
     studentProfiles,
+    grammarGuides: (grammarGuides || []).map((g) => ({ id: g.id, title: g.title, content: g.content || "" })),
   };
 }
 
@@ -248,15 +251,30 @@ export async function addFlashcard({ word, translation, example, category, targe
     await supabase.from("flashcard_assignments").insert(rows);
   }
 }
-export async function generateFlashcardAI(word, level, category) {
+export async function generateFlashcardAI(word, level, category, tense) {
   const res = await fetch("/api/flashcard", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ word, level, category }),
+    body: JSON.stringify({ word, level, category, tense }),
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || "Failed to generate");
   return data;
+}
+
+export async function addGrammarGuide(title) {
+  const { data, error } = await supabase.from("grammar_guides").insert({ title, content: "" }).select().single();
+  if (error) throw error;
+  return data;
+}
+export async function saveGrammarGuide(id, content) {
+  await supabase.from("grammar_guides").update({ content }).eq("id", id);
+}
+export async function renameGrammarGuide(id, title) {
+  await supabase.from("grammar_guides").update({ title }).eq("id", id);
+}
+export async function removeGrammarGuide(id) {
+  await supabase.from("grammar_guides").delete().eq("id", id);
 }
 export async function removeFlashcard(id) {
   await supabase.from("flashcards").delete().eq("id", id);

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   Calendar, FileText, Headphones, Layers, GraduationCap, Video, CheckCircle2,
   Circle, Plus, X, Send, Loader2, Users, LogOut, ChevronRight, Sparkles,
-  Trash2, Info, ChevronLeft, AlertCircle,
+  Trash2, Info, ChevronLeft, AlertCircle, BookOpen,
 } from "lucide-react";
 import { supabase } from "./supabaseClient";
 import * as db from "./db";
@@ -458,6 +458,7 @@ function TeacherApp({ data, refresh, onLogout }) {
     { key: "curriculum", label: "Curriculum", icon: CheckCircle2 },
     { key: "intensive", label: "Intensive course", icon: GraduationCap },
     { key: "prerecorded", label: "Pre-recorded courses", icon: Video },
+    { key: "guides", label: "Grammar guides", icon: BookOpen },
   ];
   return (
     <Shell roleLabel="Teacher" tabs={tabs} active={active} setActive={setActive} onLogout={onLogout}>
@@ -469,6 +470,7 @@ function TeacherApp({ data, refresh, onLogout }) {
       {active === "curriculum" && <TeacherCurriculum data={data} refresh={refresh} />}
       {active === "intensive" && <TeacherIntensive data={data} refresh={refresh} />}
       {active === "prerecorded" && <TeacherPrerecorded data={data} refresh={refresh} />}
+      {active === "guides" && <TeacherGrammarGuides data={data} refresh={refresh} />}
     </Shell>
   );
 }
@@ -794,10 +796,11 @@ const FLASHCARD_CATEGORIES = [
   { id: "verb", label: "Verbs & conjugations", placeholder: "Verb, infinitive form (e.g. hablar)" },
   { id: "phrase", label: "Useful phrases", placeholder: "Useful phrase (Spanish)" },
 ];
+const VERB_TENSES = ["Presente", "Pretérito indefinido", "Pretérito imperfecto", "Pretérito perfecto", "Futuro", "Condicional", "Imperativo afirmativo"];
 
 function TeacherFlashcards({ data, refresh }) {
   const [category, setCategory] = useState("word");
-  const [form, setForm] = useState({ word: "", translation: "", example: "", level: "A1", targets: [] });
+  const [form, setForm] = useState({ word: "", translation: "", example: "", level: "A1", tense: "Presente", targets: [] });
   const [generating, setGenerating] = useState(false);
   const [genError, setGenError] = useState("");
   const [filterTarget, setFilterTarget] = useState("all");
@@ -820,8 +823,9 @@ function TeacherFlashcards({ data, refresh }) {
     if (!form.word.trim()) return;
     setGenerating(true); setGenError("");
     try {
-      const { translation, example } = await db.generateFlashcardAI(form.word.trim(), form.level, category);
-      setForm((f) => ({ ...f, translation, example }));
+      const { translation, example } = await db.generateFlashcardAI(form.word.trim(), form.level, category, category === "verb" ? form.tense : undefined);
+      const finalTranslation = category === "verb" && form.tense !== "Presente" ? `${translation} — ${form.tense.toLowerCase()}` : translation;
+      setForm((f) => ({ ...f, translation: finalTranslation, example }));
     } catch (e) { setGenError("Couldn't generate — try again, or fill it in yourself."); }
     setGenerating(false);
   };
@@ -833,7 +837,7 @@ function TeacherFlashcards({ data, refresh }) {
     setAdding(true); setAddError("");
     try {
       await db.addFlashcard({ word: form.word.trim(), translation: form.translation, example: form.example, category, targets: form.targets });
-      setForm({ word: "", translation: "", example: "", level: form.level, targets: form.targets });
+      setForm({ word: "", translation: "", example: "", level: form.level, tense: form.tense, targets: form.targets });
       await refresh();
     } catch (e) {
       setAddError(e.message || "Couldn't save this flashcard — please try again.");
@@ -863,6 +867,11 @@ function TeacherFlashcards({ data, refresh }) {
       <Card className="p-5 mb-5">
         <div className="flex gap-2 mb-3">
           <Input value={form.word} onChange={(e) => setForm({ ...form, word: e.target.value })} placeholder={catMeta.placeholder} />
+          {category === "verb" && (
+            <Select value={form.tense} onChange={(e) => setForm({ ...form, tense: e.target.value })} className="w-48 flex-none">
+              {VERB_TENSES.map((t) => <option key={t}>{t}</option>)}
+            </Select>
+          )}
           <Select value={form.level} onChange={(e) => setForm({ ...form, level: e.target.value })} className="w-24 flex-none">
             {LEVELS.map((l) => <option key={l}>{l}</option>)}
           </Select>
@@ -1125,6 +1134,60 @@ function TeacherPrerecorded({ data, refresh }) {
   );
 }
 
+function TeacherGrammarGuides({ data, refresh }) {
+  const [selected, setSelected] = useState(data.grammarGuides[0]?.id || "");
+  const [showAdd, setShowAdd] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const [draft, setDraft] = useState("");
+
+  const guide = data.grammarGuides.find((g) => g.id === selected);
+  useEffect(() => { setDraft(guide?.content || ""); }, [selected]); // eslint-disable-line
+
+  const addGuide = async () => {
+    if (!newTitle.trim()) return;
+    const g = await db.addGrammarGuide(newTitle.trim());
+    setNewTitle(""); setShowAdd(false);
+    await refresh();
+    if (g) setSelected(g.id);
+  };
+  const save = async () => { if (!selected) return; await db.saveGrammarGuide(selected, draft); refresh(); };
+  const remove = async (id) => { await db.removeGrammarGuide(id); if (selected === id) setSelected(""); refresh(); };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between">
+        <SectionTitle sub="Reference guides for your students — grammar explanations, tense tables, anything you want them to be able to look up anytime.">Grammar guides</SectionTitle>
+        <Btn onClick={() => setShowAdd(true)}><Plus size={14} />New guide</Btn>
+      </div>
+      {data.grammarGuides.length === 0 ? <EmptyState text="No guides yet — create your first one." /> : (
+        <>
+          <div className="flex items-center gap-2 mb-5">
+            <Select value={selected} onChange={(e) => setSelected(e.target.value)}>
+              {data.grammarGuides.map((g) => <option key={g.id} value={g.id}>{g.title}</option>)}
+            </Select>
+            {selected && <button onClick={() => remove(selected)}><Trash2 size={16} color="#b3432b" /></button>}
+          </div>
+          {guide && (
+            <Card className="p-5">
+              <h3 className="font-medium mb-2" style={{ fontFamily: "Georgia, serif" }}>{guide.title}</h3>
+              <RichEditor value={draft} onChange={setDraft} onBlur={save} placeholder="Write the guide here..." minHeight={300} />
+              <p className="text-xs mt-1" style={{ color: MUTED }}>Saves automatically when you click away.</p>
+            </Card>
+          )}
+        </>
+      )}
+      {showAdd && (
+        <Modal title="New grammar guide" onClose={() => setShowAdd(false)}>
+          <div className="space-y-3">
+            <Input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="e.g. Subjuntivo, Ser vs Estar..." />
+            <Btn onClick={addGuide} className="w-full justify-center">Create guide</Btn>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
 /* ================================================================ */
 /* STUDENT VIEW                                                      */
 /* ================================================================ */
@@ -1141,6 +1204,7 @@ function StudentApp({ data, refresh, student, onLogout }) {
     { key: "progress", label: "My progress", icon: CheckCircle2 },
     ...(student?.intensiveGroupId ? [{ key: "intensive", label: "Intensive classroom", icon: GraduationCap }] : []),
     { key: "courses", label: "My courses", icon: Video },
+    { key: "guides", label: "Grammar guides", icon: BookOpen },
     { key: "profile", label: "My profile", icon: FileText, badge: needsProfile },
   ];
   if (!student) return null;
@@ -1153,6 +1217,7 @@ function StudentApp({ data, refresh, student, onLogout }) {
       {active === "progress" && <StudentProgress data={data} student={student} />}
       {active === "intensive" && <StudentIntensive data={data} refresh={refresh} student={student} />}
       {active === "courses" && <StudentCourses data={data} refresh={refresh} student={student} />}
+      {active === "guides" && <StudentGrammarGuides data={data} />}
       {active === "profile" && <StudentProfileForm data={data} refresh={refresh} student={student} />}
       {showPrompt && (
         <Modal title="Tell us about yourself" onClose={() => setShowPrompt(false)}>
@@ -1562,6 +1627,24 @@ function StudentCourses({ data, refresh, student }) {
               </Card>
             </>
           )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function StudentGrammarGuides({ data }) {
+  const [selected, setSelected] = useState(data.grammarGuides[0]?.id || "");
+  const guide = data.grammarGuides.find((g) => g.id === selected);
+  return (
+    <div>
+      <SectionTitle sub="Reference guides from your teacher — look things up anytime.">Grammar guides</SectionTitle>
+      {data.grammarGuides.length === 0 ? <EmptyState text="No guides yet." /> : (
+        <>
+          <div className="mb-5"><Select value={selected} onChange={(e) => setSelected(e.target.value)}>
+            {data.grammarGuides.map((g) => <option key={g.id} value={g.id}>{g.title}</option>)}
+          </Select></div>
+          {guide && <Card className="p-6">{guide.content ? <RichDoc text={guide.content} /> : <p className="text-sm" style={{ color: MUTED }}>Nothing posted yet.</p>}</Card>}
         </>
       )}
     </div>
