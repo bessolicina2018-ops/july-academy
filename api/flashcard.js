@@ -4,7 +4,7 @@ export default async function handler(req, res) {
     return;
   }
 
-  const { word, level, category } = req.body || {};
+  const { word, level, category, tense } = req.body || {};
   if (!word || !word.trim()) {
     res.status(400).json({ error: "Missing word" });
     return;
@@ -12,12 +12,18 @@ export default async function handler(req, res) {
 
   let prompt;
   if (category === "verb") {
+    const tenseName = tense || "presente";
+    const isImperative = /imperativo/i.test(tenseName);
+    const pronounNote = isImperative
+      ? "Only include rows for: tú, usted, nosotros, vosotros, ustedes (no 'yo' form exists in the imperative)."
+      : "Include one row each for: yo, tú, él/ella, nosotros, vosotros, ellos/ellas.";
     prompt = `You are a Spanish teacher creating a verb-conjugation flashcard for a ${level || "A1"}-level student.
 
 Verb (infinitive): "${word}"
+Tense: ${tenseName}
 
 Respond with ONLY a JSON object, no other text before or after, in exactly this shape:
-{"translation": "<short English meaning of the infinitive>", "example": "<a markdown table using | pipes, exactly two columns headed Pronoun and Present tense, one row each for yo, tú, él/ella, nosotros, vosotros, ellos/ellas, showing the present-tense conjugation>"}
+{"translation": "<short English meaning of the infinitive>", "example": "<a markdown table using | pipes, exactly two columns headed Pronoun and ${tenseName}, showing the ${tenseName} conjugation. ${pronounNote}>"}
 
 The "example" value must be a single string containing newline characters (\\n) between table rows, valid markdown table syntax.`;
   } else if (category === "phrase") {
