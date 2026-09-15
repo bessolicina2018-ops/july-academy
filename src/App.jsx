@@ -517,6 +517,7 @@ function TeacherStudents({ data, refresh }) {
     refresh();
   };
   const setIntensive = async (studentId, groupId) => { await db.setIntensiveGroup(studentId, groupId); refresh(); };
+  const setGroup = async (studentId, groupId) => { await db.setStudentGroup(studentId, groupId); refresh(); };
   const [profileStudent, setProfileStudent] = useState(null);
 
   return (
@@ -541,15 +542,21 @@ function TeacherStudents({ data, refresh }) {
       {data.students.length === 0 ? <EmptyState text="No students yet. Add your first student to generate their access code." /> : (
         <div className="grid gap-3">
           {data.students.map((s) => {
-            const group = data.groups.find((g) => g.id === s.groupId);
             return (
               <Card key={s.id} className="p-4 flex items-center justify-between flex-wrap gap-3">
                 <div>
-                  <div className="font-medium" style={{ color: INK }}>{s.name} <span className="text-xs font-normal" style={{ color: MUTED }}>· {s.level}{group ? ` · ${group.name}` : ""}</span></div>
+                  <div className="font-medium" style={{ color: INK }}>{s.name} <span className="text-xs font-normal" style={{ color: MUTED }}>· {s.level}</span></div>
                   <div className="text-xs mt-1" style={{ color: MUTED }}>Login code: <span className="font-mono px-2 py-0.5 rounded" style={{ backgroundColor: CARD_BEIGE }}>{s.code}</span>{s.profileId && <span className="ml-2" style={{ color: GREEN }}>· linked</span>}</div>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 flex-wrap">
                   <button onClick={() => setProfileStudent(s)} className="text-xs px-2 py-1 rounded-full" style={{ backgroundColor: data.studentProfiles[s.id]?.completedAt ? "#eef6ee" : CARD_BEIGE, color: data.studentProfiles[s.id]?.completedAt ? GREEN : MUTED }}>Profile</button>
+                  <label className="flex items-center gap-1.5 text-xs" style={{ color: MUTED }}>
+                    Group:
+                    <Select value={s.groupId || ""} onChange={(e) => setGroup(s.id, e.target.value || null)} className="!py-1 !text-xs w-auto">
+                      <option value="">Individual</option>
+                      {data.groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+                    </Select>
+                  </label>
                   <label className="flex items-center gap-1.5 text-xs" style={{ color: MUTED }}>
                     Intensive:
                     <Select value={s.intensiveGroupId || ""} onChange={(e) => setIntensive(s.id, e.target.value || null)} className="!py-1 !text-xs w-auto">
@@ -873,6 +880,12 @@ function TeacherFlashcards({ data, refresh }) {
   };
   const remove = async (id) => { await db.removeFlashcard(id); refresh(); };
 
+  const [editingCard, setEditingCard] = useState(null);
+  const [editTargets, setEditTargets] = useState([]);
+  const startEdit = (f) => { setEditingCard(f.id); setEditTargets(effectiveTargets(f).map((t) => `${t.type}:${t.id}`)); };
+  const toggleEditTarget = (key) => setEditTargets((prev) => (prev.includes(key) ? prev.filter((x) => x !== key) : [...prev, key]));
+  const saveEdit = async () => { await db.updateFlashcardTargets(editingCard, editTargets); setEditingCard(null); refresh(); };
+
   const visibleCards = data.flashcards.filter((f) => {
     if ((f.category || "word") !== category) return false;
     if (filterTarget === "all") return true;
@@ -950,14 +963,33 @@ function TeacherFlashcards({ data, refresh }) {
               <div className="flex-1">
                 <div className="font-medium">{f.word} <span className="text-xs font-normal" style={{ color: MUTED }}>— {f.translation}</span></div>
                 {f.example && <div className="text-xs mt-1" style={{ color: MUTED }}><RichDoc text={f.example} /></div>}
-                <div className="text-[10px] mt-1 inline-block px-2 py-0.5 rounded-full" style={{ backgroundColor: CARD_BEIGE, color: MUTED }}>{targetLabel(f)}</div>
+                <button onClick={() => startEdit(f)} className="text-[10px] mt-1 inline-block px-2 py-0.5 rounded-full underline" style={{ backgroundColor: CARD_BEIGE, color: MUTED }}>{targetLabel(f)} · edit</button>
               </div>
               <button onClick={() => remove(f.id)}><Trash2 size={14} color="#b3432b" /></button>
             </Card>
           ))}
         </div>
       )}
+      {editingCard && (
+        <Modal title="Edit who this card is assigned to" onClose={() => setEditingCard(null)}>
+          <div className="flex flex-wrap gap-2 mb-3">
+            {data.groups.map((g) => {
+              const key = `group:${g.id}`;
+              const active = editTargets.includes(key);
+              return <button key={key} type="button" onClick={() => toggleEditTarget(key)} className="text-xs px-3 py-1.5 rounded-full" style={{ backgroundColor: active ? GREEN : CARD_BEIGE, color: active ? "white" : INK }}>{g.name}</button>;
+            })}
+            {data.students.map((s) => {
+              const key = `student:${s.id}`;
+              const active = editTargets.includes(key);
+              return <button key={key} type="button" onClick={() => toggleEditTarget(key)} className="text-xs px-3 py-1.5 rounded-full" style={{ backgroundColor: active ? GREEN : CARD_BEIGE, color: active ? "white" : INK }}>{s.name}</button>;
+            })}
+          </div>
+          <p className="text-xs mb-3" style={{ color: MUTED }}>{editTargets.length === 0 ? "No one selected — this card will be visible to everyone." : `${editTargets.length} selected.`}</p>
+          <Btn onClick={saveEdit} className="w-full justify-center">Save</Btn>
+        </Modal>
+      )}
     </div>
+
   );
 }
 

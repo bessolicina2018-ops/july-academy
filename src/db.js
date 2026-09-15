@@ -196,6 +196,9 @@ export async function removeStudent(id) {
 export async function setIntensiveGroup(studentId, groupId) {
   await supabase.from("students").update({ intensive_group_id: groupId || null }).eq("id", studentId);
 }
+export async function setStudentGroup(studentId, groupId) {
+  await supabase.from("students").update({ group_id: groupId || null }).eq("id", studentId);
+}
 export async function addGroup({ name, level }) {
   await supabase.from("groups").insert({ name, level });
 }
@@ -250,6 +253,18 @@ export async function addFlashcard({ word, translation, example, category, targe
     const rows = targets.map((t) => {
       const [type, id] = t.split(":");
       return { flashcard_id: data.id, group_id: type === "group" ? id : null, student_id: type === "student" ? id : null };
+    });
+    await supabase.from("flashcard_assignments").insert(rows);
+  }
+}
+export async function updateFlashcardTargets(flashcardId, targets) {
+  // clear legacy single-target columns (from before multi-assign existed) and old assignment rows
+  await supabase.from("flashcards").update({ group_id: null, student_id: null }).eq("id", flashcardId);
+  await supabase.from("flashcard_assignments").delete().eq("flashcard_id", flashcardId);
+  if (targets && targets.length) {
+    const rows = targets.map((t) => {
+      const [type, id] = t.split(":");
+      return { flashcard_id: flashcardId, group_id: type === "group" ? id : null, student_id: type === "student" ? id : null };
     });
     await supabase.from("flashcard_assignments").insert(rows);
   }
