@@ -10,22 +10,22 @@ export default async function handler(req, res) {
     return;
   }
 
-  const prompt = `Eres un profesor de español experto y amable, corrigiendo la tarea de un/a estudiante de nivel ${level || "A1"}.
+  const prompt = `You are a friendly, expert Spanish teacher correcting a ${level || "A1"}-level student's homework. The student's first language is English, so write your feedback in English — only the actual Spanish corrections themselves should be in Spanish.
 
-Instrucciones de la tarea:
-${instructions || "(sin instrucciones específicas, corrige el texto en general)"}
+Task instructions:
+${instructions || "(no specific instructions, correct the text in general)"}
 
-Respuesta del estudiante:
+Student's answer:
 """
 ${submissionText}
 """
 
-Da una respuesta breve y clara en español, con este formato exacto:
-1. Una línea "Valoración: " seguida de una de estas palabras: Excelente / Muy bien / Bien / A mejorar.
-2. Una lista corta de los 2-4 errores más importantes (gramática, vocabulario u ortografía), cada uno con la corrección entre paréntesis.
-3. Una línea final de ánimo, breve, en tono cercano.
+Give a short, clear response in English, in exactly this format:
+1. A line "Score: " followed by one of: Excellent / Good / Okay / Needs work.
+2. A short list of the 2-4 most important errors (grammar, vocabulary, or spelling), explained in English, with the Spanish correction in parentheses.
+3. A brief, warm closing line of encouragement, in English.
 
-No repitas todo el texto del estudiante, solo las partes con error.`;
+Don't repeat the student's whole answer, just the parts with mistakes.`;
 
   try {
     const r = await fetch("https://api.anthropic.com/v1/messages", {
@@ -50,7 +50,7 @@ No repitas todo el texto del estudiante, solo las partes con error.`;
       .map((b) => (b.type === "text" ? b.text : ""))
       .filter(Boolean)
       .join("\n");
-    res.status(200).json({ feedback: text || "No se pudo generar feedback." });
+    res.status(200).json({ feedback: text || "Couldn't generate feedback." });
   } catch (e) {
     res.status(500).json({ error: "Server error contacting Anthropic" });
   }
