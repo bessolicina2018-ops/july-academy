@@ -826,11 +826,19 @@ function TeacherFlashcards({ data, refresh }) {
     setGenerating(false);
   };
 
+  const [addError, setAddError] = useState("");
+  const [adding, setAdding] = useState(false);
   const add = async () => {
     if (!form.word.trim()) return;
-    await db.addFlashcard({ word: form.word.trim(), translation: form.translation, example: form.example, category, targets: form.targets });
-    setForm({ word: "", translation: "", example: "", level: form.level, targets: form.targets });
-    refresh();
+    setAdding(true); setAddError("");
+    try {
+      await db.addFlashcard({ word: form.word.trim(), translation: form.translation, example: form.example, category, targets: form.targets });
+      setForm({ word: "", translation: "", example: "", level: form.level, targets: form.targets });
+      await refresh();
+    } catch (e) {
+      setAddError(e.message || "Couldn't save this flashcard — please try again.");
+    }
+    setAdding(false);
   };
   const remove = async (id) => { await db.removeFlashcard(id); refresh(); };
 
@@ -888,7 +896,8 @@ function TeacherFlashcards({ data, refresh }) {
             {form.example && <div className="mt-2 rounded-lg p-3" style={{ backgroundColor: CARD_BEIGE }}><RichDoc text={form.example} /></div>}
           </div>
         )}
-        <div className="mt-3"><Btn onClick={add}><Plus size={14} />Add {catMeta.label.toLowerCase().replace(/s$/, "")}</Btn></div>
+        {addError && <p className="text-xs mb-2" style={{ color: "#b3432b" }}>{addError}</p>}
+        <div className="mt-3"><Btn onClick={add} disabled={adding}>{adding ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}Add {catMeta.label.toLowerCase().replace(/s$/, "")}</Btn></div>
       </Card>
 
       <div className="mb-3"><Select value={filterTarget} onChange={(e) => setFilterTarget(e.target.value)}>
