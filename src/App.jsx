@@ -344,7 +344,7 @@ function LoginScreen({ onLogin }) {
     try {
       const { studentId, userId } = await db.studentLogin(name, code);
       onLogin({ role: "student", studentId, userId });
-    } catch (e) { setError("No encontramos ese nombre y código. Revisa con tu profesora."); }
+    } catch (e) { setError("We couldn't find that name and code — check with your teacher."); }
     setLoading(false);
   };
 
@@ -789,23 +789,38 @@ function TeacherResources({ data, refresh }) {
   );
 }
 
+const FLASHCARD_CATEGORIES = [
+  { id: "word", label: "New words & expressions", placeholder: "Word or expression (Spanish)" },
+  { id: "verb", label: "Verbs & conjugations", placeholder: "Verb, infinitive form (e.g. hablar)" },
+  { id: "phrase", label: "Useful phrases", placeholder: "Useful phrase (Spanish)" },
+];
+
 function TeacherFlashcards({ data, refresh }) {
-  const [form, setForm] = useState({ word: "", translation: "", example: "", level: "A1", target: "" });
+  const [category, setCategory] = useState("word");
+  const [form, setForm] = useState({ word: "", translation: "", example: "", level: "A1", targets: [] });
   const [generating, setGenerating] = useState(false);
   const [genError, setGenError] = useState("");
   const [filterTarget, setFilterTarget] = useState("all");
 
+  const catMeta = FLASHCARD_CATEGORIES.find((c) => c.id === category);
+
+  const effectiveTargets = (f) => (f.targets && f.targets.length ? f.targets : f.groupId ? [{ type: "group", id: f.groupId }] : f.studentId ? [{ type: "student", id: f.studentId }] : []);
+  const labelForTarget = (t) => (t.type === "group" ? data.groups.find((g) => g.id === t.id)?.name : data.students.find((s) => s.id === t.id)?.name) || "Deleted";
   const targetLabel = (f) => {
-    if (f.groupId) return data.groups.find((g) => g.id === f.groupId)?.name || "Deleted group";
-    if (f.studentId) return data.students.find((s) => s.id === f.studentId)?.name || "Deleted student";
-    return "Everyone";
+    const targets = effectiveTargets(f);
+    return targets.length === 0 ? "Everyone" : targets.map(labelForTarget).join(", ");
   };
+
+  const toggleFormTarget = (key) => setForm((f) => ({
+    ...f,
+    targets: f.targets.includes(key) ? f.targets.filter((x) => x !== key) : [...f.targets, key],
+  }));
 
   const generate = async () => {
     if (!form.word.trim()) return;
     setGenerating(true); setGenError("");
     try {
-      const { translation, example } = await db.generateFlashcardAI(form.word.trim(), form.level);
+      const { translation, example } = await db.generateFlashcardAI(form.word.trim(), form.level, category);
       setForm((f) => ({ ...f, translation, example }));
     } catch (e) { setGenError("Couldn't generate — try again, or fill it in yourself."); }
     setGenerating(false);
@@ -813,54 +828,67 @@ function TeacherFlashcards({ data, refresh }) {
 
   const add = async () => {
     if (!form.word.trim()) return;
-    const groupId = form.target.startsWith("group:") ? form.target.slice(6) : null;
-    const studentId = form.target.startsWith("student:") ? form.target.slice(8) : null;
-    await db.addFlashcard({ word: form.word.trim(), translation: form.translation, example: form.example, groupId, studentId });
-    setForm({ word: "", translation: "", example: "", level: form.level, target: form.target });
+    await db.addFlashcard({ word: form.word.trim(), translation: form.translation, example: form.example, category, targets: form.targets });
+    setForm({ word: "", translation: "", example: "", level: form.level, targets: form.targets });
     refresh();
   };
   const remove = async (id) => { await db.removeFlashcard(id); refresh(); };
 
   const visibleCards = data.flashcards.filter((f) => {
+    if ((f.category || "word") !== category) return false;
     if (filterTarget === "all") return true;
-    if (filterTarget === "everyone") return !f.groupId && !f.studentId;
-    if (filterTarget.startsWith("group:")) return f.groupId === filterTarget.slice(6);
-    if (filterTarget.startsWith("student:")) return f.studentId === filterTarget.slice(8);
+    const targets = effectiveTargets(f);
+    if (filterTarget === "everyone") return targets.length === 0;
+    if (filterTarget.startsWith("group:")) return targets.some((t) => t.type === "group" && t.id === filterTarget.slice(6));
+    if (filterTarget.startsWith("student:")) return targets.some((t) => t.type === "student" && t.id === filterTarget.slice(8));
     return true;
   });
 
   return (
     <div>
-      <SectionTitle sub="Give just the word or expression — AI fills in the translation and an example sentence at the right level. Assign each card to everyone, a group, or one student.">Flashcards</SectionTitle>
+      <SectionTitle sub="Give just the word, verb, or phrase — AI fills in the rest. Assign each card to everyone, or pick as many groups and students as you like.">Flashcards</SectionTitle>
+      <div className="flex flex-wrap gap-2 mb-5">
+        {FLASHCARD_CATEGORIES.map((c) => (
+          <button key={c.id} onClick={() => setCategory(c.id)} className="px-3 py-1.5 rounded-full text-sm" style={{ backgroundColor: category === c.id ? GREEN : CARD_BEIGE, color: category === c.id ? "white" : INK }}>{c.label}</button>
+        ))}
+      </div>
       <Card className="p-5 mb-5">
-        <div className="grid md:grid-cols-2 gap-2 mb-2">
-          <div className="flex gap-2">
-            <Input value={form.word} onChange={(e) => setForm({ ...form, word: e.target.value })} placeholder="Word or expression (Spanish)" />
-            <Select value={form.level} onChange={(e) => setForm({ ...form, level: e.target.value })} className="w-24 flex-none">
-              {LEVELS.map((l) => <option key={l}>{l}</option>)}
-            </Select>
-          </div>
-          <Select value={form.target} onChange={(e) => setForm({ ...form, target: e.target.value })}>
-            <option value="">Assign to: Everyone</option>
-            {data.groups.length > 0 && (
-              <optgroup label="Groups">
-                {data.groups.map((g) => <option key={g.id} value={`group:${g.id}`}>{g.name}</option>)}
-              </optgroup>
-            )}
-            {data.students.length > 0 && (
-              <optgroup label="Individual students">
-                {data.students.map((s) => <option key={s.id} value={`student:${s.id}`}>{s.name}</option>)}
-              </optgroup>
-            )}
+        <div className="flex gap-2 mb-3">
+          <Input value={form.word} onChange={(e) => setForm({ ...form, word: e.target.value })} placeholder={catMeta.placeholder} />
+          <Select value={form.level} onChange={(e) => setForm({ ...form, level: e.target.value })} className="w-24 flex-none">
+            {LEVELS.map((l) => <option key={l}>{l}</option>)}
           </Select>
         </div>
+
+        <label className="text-xs" style={{ color: MUTED }}>Assign to (select none for everyone)</label>
+        <div className="flex flex-wrap gap-2 mt-1.5 mb-1">
+          {data.groups.map((g) => {
+            const key = `group:${g.id}`;
+            const active = form.targets.includes(key);
+            return <button key={key} type="button" onClick={() => toggleFormTarget(key)} className="text-xs px-3 py-1.5 rounded-full" style={{ backgroundColor: active ? GREEN : CARD_BEIGE, color: active ? "white" : INK }}>{g.name}</button>;
+          })}
+          {data.students.map((s) => {
+            const key = `student:${s.id}`;
+            const active = form.targets.includes(key);
+            return <button key={key} type="button" onClick={() => toggleFormTarget(key)} className="text-xs px-3 py-1.5 rounded-full" style={{ backgroundColor: active ? GREEN : CARD_BEIGE, color: active ? "white" : INK }}>{s.name}</button>;
+          })}
+        </div>
+        <p className="text-xs mb-3" style={{ color: MUTED }}>{form.targets.length === 0 ? "No one selected — this card will be visible to everyone." : `${form.targets.length} selected: ${form.targets.map((k) => labelForTarget({ type: k.startsWith("group:") ? "group" : "student", id: k.split(":")[1] })).join(", ")}`}</p>
+
         <div className="mb-2"><Btn variant="ghost" onClick={generate} disabled={generating || !form.word.trim()}>{generating ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />} Generate with AI</Btn></div>
         {genError && <p className="text-xs mb-2" style={{ color: "#b3432b" }}>{genError}</p>}
-        <div className="grid md:grid-cols-2 gap-2">
+        <div className="grid md:grid-cols-2 gap-2 mb-2">
           <Input value={form.translation} onChange={(e) => setForm({ ...form, translation: e.target.value })} placeholder="Translation" />
-          <Input value={form.example} onChange={(e) => setForm({ ...form, example: e.target.value })} placeholder="Example sentence" />
+          {category !== "verb" && <Input value={form.example} onChange={(e) => setForm({ ...form, example: e.target.value })} placeholder="Example sentence" />}
         </div>
-        <div className="mt-3"><Btn onClick={add}><Plus size={14} />Add word</Btn></div>
+        {category === "verb" && (
+          <div>
+            <label className="text-xs" style={{ color: MUTED }}>Conjugation table (edit if needed — supports the same table format as class notes)</label>
+            <Textarea className="mt-1" value={form.example} onChange={(e) => setForm({ ...form, example: e.target.value })} placeholder={"| Pronoun | Present tense |\n| --- | --- |\n| yo |  |\n| tú |  |"} style={{ fontFamily: "ui-monospace, monospace", minHeight: 140 }} />
+            {form.example && <div className="mt-2 rounded-lg p-3" style={{ backgroundColor: CARD_BEIGE }}><RichDoc text={form.example} /></div>}
+          </div>
+        )}
+        <div className="mt-3"><Btn onClick={add}><Plus size={14} />Add {catMeta.label.toLowerCase().replace(/s$/, "")}</Btn></div>
       </Card>
 
       <div className="mb-3"><Select value={filterTarget} onChange={(e) => setFilterTarget(e.target.value)}>
@@ -870,13 +898,13 @@ function TeacherFlashcards({ data, refresh }) {
         {data.students.map((s) => <option key={s.id} value={`student:${s.id}`}>{s.name}</option>)}
       </Select></div>
 
-      {visibleCards.length === 0 ? <EmptyState text="No flashcards yet." /> : (
+      {visibleCards.length === 0 ? <EmptyState text="No flashcards in this category yet." /> : (
         <div className="grid sm:grid-cols-2 gap-2">
           {visibleCards.map((f) => (
             <Card key={f.id} className="p-4 flex justify-between items-start">
-              <div>
+              <div className="flex-1">
                 <div className="font-medium">{f.word} <span className="text-xs font-normal" style={{ color: MUTED }}>— {f.translation}</span></div>
-                {f.example && <div className="text-xs italic mt-1" style={{ color: MUTED }}>{f.example}</div>}
+                {f.example && <div className="text-xs mt-1" style={{ color: MUTED }}><RichDoc text={f.example} /></div>}
                 <div className="text-[10px] mt-1 inline-block px-2 py-0.5 rounded-full" style={{ backgroundColor: CARD_BEIGE, color: MUTED }}>{targetLabel(f)}</div>
               </div>
               <button onClick={() => remove(f.id)}><Trash2 size={14} color="#b3432b" /></button>
@@ -1347,23 +1375,33 @@ function StudentResources({ data }) {
 }
 
 function StudentFlashcards({ data }) {
+  const [category, setCategory] = useState("word");
   const [i, setI] = useState(0);
   const [flip, setFlip] = useState(false);
-  const cards = data.flashcards;
-  if (cards.length === 0) return (<div><SectionTitle>Flashcards</SectionTitle><EmptyState text="No flashcards yet." /></div>);
+  const cards = data.flashcards.filter((f) => (f.category || "word") === category);
+  const catMeta = FLASHCARD_CATEGORIES.find((c) => c.id === category);
   const card = cards[i % cards.length];
   return (
     <div>
       <SectionTitle sub="Tap the card to flip.">Flashcards</SectionTitle>
-      <Card className="p-10 text-center cursor-pointer max-w-md" onClick={() => setFlip(!flip)}>
-        <div className="text-2xl mb-2" style={{ fontFamily: "Georgia, serif" }}>{flip ? card.translation : card.word}</div>
-        {flip && card.example && <div className="text-sm italic" style={{ color: MUTED }}>{card.example}</div>}
-      </Card>
-      <div className="flex gap-2 mt-4">
-        <Btn variant="ghost" onClick={() => { setFlip(false); setI((i - 1 + cards.length) % cards.length); }}><ChevronLeft size={14} />Prev</Btn>
-        <Btn variant="ghost" onClick={() => { setFlip(false); setI((i + 1) % cards.length); }}>Next<ChevronRight size={14} /></Btn>
+      <div className="flex flex-wrap gap-2 mb-5">
+        {FLASHCARD_CATEGORIES.map((c) => (
+          <button key={c.id} onClick={() => { setCategory(c.id); setI(0); setFlip(false); }} className="px-3 py-1.5 rounded-full text-sm" style={{ backgroundColor: category === c.id ? GREEN : CARD_BEIGE, color: category === c.id ? "white" : INK }}>{c.label}</button>
+        ))}
       </div>
-      <p className="text-xs mt-3" style={{ color: MUTED }}>{(i % cards.length) + 1} / {cards.length}</p>
+      {cards.length === 0 ? <EmptyState text={`No ${catMeta.label.toLowerCase()} yet.`} /> : (
+        <>
+          <Card className="p-10 text-center cursor-pointer max-w-md" onClick={() => setFlip(!flip)}>
+            <div className="text-2xl mb-2" style={{ fontFamily: "Georgia, serif" }}>{flip ? card.translation : card.word}</div>
+            {flip && card.example && <div className="text-sm mt-2 text-left"><RichDoc text={card.example} /></div>}
+          </Card>
+          <div className="flex gap-2 mt-4">
+            <Btn variant="ghost" onClick={() => { setFlip(false); setI((i - 1 + cards.length) % cards.length); }}><ChevronLeft size={14} />Prev</Btn>
+            <Btn variant="ghost" onClick={() => { setFlip(false); setI((i + 1) % cards.length); }}>Next<ChevronRight size={14} /></Btn>
+          </div>
+          <p className="text-xs mt-3" style={{ color: MUTED }}>{(i % cards.length) + 1} / {cards.length}</p>
+        </>
+      )}
     </div>
   );
 }

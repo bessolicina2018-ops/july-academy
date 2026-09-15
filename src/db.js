@@ -22,6 +22,7 @@ export async function fetchAll() {
     { data: courseTasks },
     { data: courseSubs },
     { data: studentProfileRows },
+    { data: flashcardAssignments },
   ] = await Promise.all([
     supabase.from("students").select("*"),
     supabase.from("groups").select("*"),
@@ -38,6 +39,7 @@ export async function fetchAll() {
     supabase.from("course_tasks").select("*"),
     supabase.from("course_submissions").select("*"),
     supabase.from("student_profiles").select("*"),
+    supabase.from("flashcard_assignments").select("*"),
   ]);
 
   const curriculum = { A1: [], A2: [], B1: [], B2: [] };
@@ -158,8 +160,12 @@ export async function fetchAll() {
       word: f.word,
       translation: f.translation,
       example: f.example,
+      category: f.category || "word",
       groupId: f.group_id,
       studentId: f.student_id,
+      targets: (flashcardAssignments || [])
+        .filter((a) => a.flashcard_id === f.id)
+        .map((a) => (a.group_id ? { type: "group", id: a.group_id } : { type: "student", id: a.student_id })),
     })),
     curriculum,
     progress,
@@ -227,14 +233,26 @@ export async function addResource(r) {
 export async function removeResource(id) {
   await supabase.from("resources").delete().eq("id", id);
 }
-export async function addFlashcard({ word, translation, example, groupId, studentId }) {
-  await supabase.from("flashcards").insert({ word, translation, example, group_id: groupId || null, student_id: studentId || null });
+export async function addFlashcard({ word, translation, example, category, targets }) {
+  const { data, error } = await supabase
+    .from("flashcards")
+    .insert({ word, translation, example, category: category || "word" })
+    .select()
+    .single();
+  if (error) throw error;
+  if (targets && targets.length) {
+    const rows = targets.map((t) => {
+      const [type, id] = t.split(":");
+      return { flashcard_id: data.id, group_id: type === "group" ? id : null, student_id: type === "student" ? id : null };
+    });
+    await supabase.from("flashcard_assignments").insert(rows);
+  }
 }
-export async function generateFlashcardAI(word, level) {
+export async function generateFlashcardAI(word, level, category) {
   const res = await fetch("/api/flashcard", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ word, level }),
+    body: JSON.stringify({ word, level, category }),
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || "Failed to generate");
@@ -246,6 +264,23 @@ export async function removeFlashcard(id) {
 
 export async function addCurriculumItem(level, name) {
   await supabase.from("curriculum_items").insert({ level, name });
+}
+export async function removeCurriculumItem(id) {
+  await supabase.from("curriculum_items").delete().eq("id", id);
+}
+export async function addCurriculumItemsBulk(level, names) {
+  const rows = names.map((name, i) => ({ level, name, position: i }));
+  await supabase.from("curriculum_items").insert(rows);
+}
+export async function generateCurriculumAI(level) {
+  const res = await fetch("/api/curriculum", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ level }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to generate");
+  return data.items || [];
 }
 export async function toggleProgress(studentId, itemId, currentlyDone) {
   if (currentlyDone) {
@@ -328,6 +363,15 @@ export async function saveStudentProfile(studentId, fields) {
   );
 }
 
+export async function uploadClassImage(file) {
+  const ext = (file.name.split(".").pop() || "png").toLowerCase();
+  const path = `${crypto.randomUUID()}.${ext}`;
+  const { error } = await supabase.storage.from("class-images").upload(path, file);
+  if (error) throw error;
+  const { data } = supabase.storage.from("class-images").getPublicUrl(path);
+  return data.publicUrl;
+}
+
 /* ---------------------------------------------------------------- */
 /* Auth helpers                                                       */
 /* ---------------------------------------------------------------- */
@@ -355,26 +399,11 @@ export async function studentLogin(name, code) {
     userId = data.user.id;
   }
 
-  const { data: match } = await supabase
-    .from("students")
-    .select("*")
-    .ilike("code", code.trim())
-    .is("profile_id", null)
-    .maybeSingle();
+  const { data: studentId, error } = await supabase.rpc("claim_student", { p_name: name, p_code: code });
+  if (error) throw error;
+  if (!studentId) throw new Error("No student found with that name and code.");
 
-  if (!match || match.name.trim().toLowerCase() !== name.trim().toLowerCase()) {
-    throw new Error("No student found with that name and code.");
-  }
-
-  const { error: linkError } = await supabase
-    .from("students")
-    .update({ profile_id: userId })
-    .eq("id", match.id);
-  if (linkError) throw linkError;
-
-  await supabase.from("profiles").update({ name: match.name }).eq("id", userId);
-
-  return { studentId: match.id, userId };
+  return { studentId, userId };
 }
 
 export async function signOut() {
