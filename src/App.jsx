@@ -509,6 +509,8 @@ function StudentProfileSummary({ profile, student }) {
     </div>
   );
 }
+
+function TeacherTimetable({ data, refresh }) {
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ date: "", time: "", duration: "60", label: "", audienceType: "open", groupId: "", studentId: "" });
   const addSlot = async () => { if (!form.date || !form.time) return; await db.addSlot({ ...form, duration: Number(form.duration) }); setForm({ date: "", time: "", duration: "60", label: "", audienceType: "open", groupId: "", studentId: "" }); setShowAdd(false); refresh(); };
@@ -701,25 +703,95 @@ function TeacherResources({ data, refresh }) {
 }
 
 function TeacherFlashcards({ data, refresh }) {
-  const [form, setForm] = useState({ word: "", translation: "", example: "" });
-  const add = async () => { if (!form.word.trim()) return; await db.addFlashcard(form); setForm({ word: "", translation: "", example: "" }); refresh(); };
+  const [form, setForm] = useState({ word: "", translation: "", example: "", level: "A1", target: "" });
+  const [generating, setGenerating] = useState(false);
+  const [genError, setGenError] = useState("");
+  const [filterTarget, setFilterTarget] = useState("all");
+
+  const targetLabel = (f) => {
+    if (f.groupId) return data.groups.find((g) => g.id === f.groupId)?.name || "Deleted group";
+    if (f.studentId) return data.students.find((s) => s.id === f.studentId)?.name || "Deleted student";
+    return "Everyone";
+  };
+
+  const generate = async () => {
+    if (!form.word.trim()) return;
+    setGenerating(true); setGenError("");
+    try {
+      const { translation, example } = await db.generateFlashcardAI(form.word.trim(), form.level);
+      setForm((f) => ({ ...f, translation, example }));
+    } catch (e) { setGenError("Couldn't generate — try again, or fill it in yourself."); }
+    setGenerating(false);
+  };
+
+  const add = async () => {
+    if (!form.word.trim()) return;
+    const groupId = form.target.startsWith("group:") ? form.target.slice(6) : null;
+    const studentId = form.target.startsWith("student:") ? form.target.slice(8) : null;
+    await db.addFlashcard({ word: form.word.trim(), translation: form.translation, example: form.example, groupId, studentId });
+    setForm({ word: "", translation: "", example: "", level: form.level, target: form.target });
+    refresh();
+  };
   const remove = async (id) => { await db.removeFlashcard(id); refresh(); };
+
+  const visibleCards = data.flashcards.filter((f) => {
+    if (filterTarget === "all") return true;
+    if (filterTarget === "everyone") return !f.groupId && !f.studentId;
+    if (filterTarget.startsWith("group:")) return f.groupId === filterTarget.slice(6);
+    if (filterTarget.startsWith("student:")) return f.studentId === filterTarget.slice(8);
+    return true;
+  });
+
   return (
     <div>
-      <SectionTitle sub="New words you want your students to review as flashcards.">Flashcards</SectionTitle>
+      <SectionTitle sub="Give just the word or expression — AI fills in the translation and an example sentence at the right level. Assign each card to everyone, a group, or one student.">Flashcards</SectionTitle>
       <Card className="p-5 mb-5">
-        <div className="grid md:grid-cols-3 gap-2">
-          <Input value={form.word} onChange={(e) => setForm({ ...form, word: e.target.value })} placeholder="Word (Spanish)" />
+        <div className="grid md:grid-cols-2 gap-2 mb-2">
+          <div className="flex gap-2">
+            <Input value={form.word} onChange={(e) => setForm({ ...form, word: e.target.value })} placeholder="Word or expression (Spanish)" />
+            <Select value={form.level} onChange={(e) => setForm({ ...form, level: e.target.value })} className="w-24 flex-none">
+              {LEVELS.map((l) => <option key={l}>{l}</option>)}
+            </Select>
+          </div>
+          <Select value={form.target} onChange={(e) => setForm({ ...form, target: e.target.value })}>
+            <option value="">Assign to: Everyone</option>
+            {data.groups.length > 0 && (
+              <optgroup label="Groups">
+                {data.groups.map((g) => <option key={g.id} value={`group:${g.id}`}>{g.name}</option>)}
+              </optgroup>
+            )}
+            {data.students.length > 0 && (
+              <optgroup label="Individual students">
+                {data.students.map((s) => <option key={s.id} value={`student:${s.id}`}>{s.name}</option>)}
+              </optgroup>
+            )}
+          </Select>
+        </div>
+        <div className="mb-2"><Btn variant="ghost" onClick={generate} disabled={generating || !form.word.trim()}>{generating ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />} Generate with AI</Btn></div>
+        {genError && <p className="text-xs mb-2" style={{ color: "#b3432b" }}>{genError}</p>}
+        <div className="grid md:grid-cols-2 gap-2">
           <Input value={form.translation} onChange={(e) => setForm({ ...form, translation: e.target.value })} placeholder="Translation" />
           <Input value={form.example} onChange={(e) => setForm({ ...form, example: e.target.value })} placeholder="Example sentence" />
         </div>
         <div className="mt-3"><Btn onClick={add}><Plus size={14} />Add word</Btn></div>
       </Card>
-      {data.flashcards.length === 0 ? <EmptyState text="No flashcards yet." /> : (
+
+      <div className="mb-3"><Select value={filterTarget} onChange={(e) => setFilterTarget(e.target.value)}>
+        <option value="all">Showing: All flashcards</option>
+        <option value="everyone">Everyone (unassigned)</option>
+        {data.groups.map((g) => <option key={g.id} value={`group:${g.id}`}>{g.name}</option>)}
+        {data.students.map((s) => <option key={s.id} value={`student:${s.id}`}>{s.name}</option>)}
+      </Select></div>
+
+      {visibleCards.length === 0 ? <EmptyState text="No flashcards yet." /> : (
         <div className="grid sm:grid-cols-2 gap-2">
-          {data.flashcards.map((f) => (
+          {visibleCards.map((f) => (
             <Card key={f.id} className="p-4 flex justify-between items-start">
-              <div><div className="font-medium">{f.word} <span className="text-xs font-normal" style={{ color: MUTED }}>— {f.translation}</span></div>{f.example && <div className="text-xs italic mt-1" style={{ color: MUTED }}>{f.example}</div>}</div>
+              <div>
+                <div className="font-medium">{f.word} <span className="text-xs font-normal" style={{ color: MUTED }}>— {f.translation}</span></div>
+                {f.example && <div className="text-xs italic mt-1" style={{ color: MUTED }}>{f.example}</div>}
+                <div className="text-[10px] mt-1 inline-block px-2 py-0.5 rounded-full" style={{ backgroundColor: CARD_BEIGE, color: MUTED }}>{targetLabel(f)}</div>
+              </div>
               <button onClick={() => remove(f.id)}><Trash2 size={14} color="#b3432b" /></button>
             </Card>
           ))}

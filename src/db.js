@@ -153,7 +153,14 @@ export async function fetchAll() {
       bookedBy: s.booked_by,
     })),
     resources: resources || [],
-    flashcards: flashcards || [],
+    flashcards: (flashcards || []).map((f) => ({
+      id: f.id,
+      word: f.word,
+      translation: f.translation,
+      example: f.example,
+      groupId: f.group_id,
+      studentId: f.student_id,
+    })),
     curriculum,
     progress,
     personalDocs,
@@ -220,8 +227,18 @@ export async function addResource(r) {
 export async function removeResource(id) {
   await supabase.from("resources").delete().eq("id", id);
 }
-export async function addFlashcard(f) {
-  await supabase.from("flashcards").insert(f);
+export async function addFlashcard({ word, translation, example, groupId, studentId }) {
+  await supabase.from("flashcards").insert({ word, translation, example, group_id: groupId || null, student_id: studentId || null });
+}
+export async function generateFlashcardAI(word, level) {
+  const res = await fetch("/api/flashcard", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ word, level }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to generate");
+  return data;
 }
 export async function removeFlashcard(id) {
   await supabase.from("flashcards").delete().eq("id", id);
