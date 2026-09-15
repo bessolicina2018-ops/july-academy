@@ -301,8 +301,8 @@ function CheckboxGroup({ options, values, onChange, max, disabled }) {
     </div>
   );
 }
-function Card({ children, className = "", style = {} }) {
-  return <div className={"rounded-2xl bg-white " + className} style={{ border: `1px solid ${BORDER}`, ...style }}>{children}</div>;
+function Card({ children, className = "", style = {}, onClick }) {
+  return <div className={"rounded-2xl bg-white " + className} style={{ border: `1px solid ${BORDER}`, ...style }} onClick={onClick}>{children}</div>;
 }
 function SectionTitle({ children, sub }) {
   return (
