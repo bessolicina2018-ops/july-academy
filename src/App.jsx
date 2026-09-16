@@ -546,7 +546,7 @@ function TeacherStudents({ data, refresh }) {
               <Card key={s.id} className="p-4 flex items-center justify-between flex-wrap gap-3">
                 <div>
                   <div className="font-medium" style={{ color: INK }}>{s.name} <span className="text-xs font-normal" style={{ color: MUTED }}>· {s.level}</span></div>
-                  <div className="text-xs mt-1" style={{ color: MUTED }}>Login code: <span className="font-mono px-2 py-0.5 rounded" style={{ backgroundColor: CARD_BEIGE }}>{s.code}</span>{s.profileId && <span className="ml-2" style={{ color: GREEN }}>· linked</span>}</div>
+                  <div className="text-xs mt-1" style={{ color: MUTED }}>Login code: <span className="font-mono px-2 py-0.5 rounded" style={{ backgroundColor: CARD_BEIGE }}>{s.code}</span>{s.profileId && <span className="ml-2" style={{ color: GREEN }}>· linked</span>}{s.lastLoginAt && <span className="ml-2">· last active {new Date(s.lastLoginAt).toLocaleDateString()}</span>}</div>
                 </div>
                 <div className="flex items-center gap-3 flex-wrap">
                   <button onClick={() => setProfileStudent(s)} className="text-xs px-2 py-1 rounded-full" style={{ backgroundColor: data.studentProfiles[s.id]?.completedAt ? "#eef6ee" : CARD_BEIGE, color: data.studentProfiles[s.id]?.completedAt ? GREEN : MUTED }}>Profile</button>
@@ -716,9 +716,31 @@ function TeacherDocs({ data, refresh }) {
   const startEdit = (n) => { setEditingNoteId(n.id); setEditDraft(n.text); };
   const saveEdit = async () => { await db.updateNote(editingNoteId, editDraft); setEditingNoteId(null); refresh(); };
 
+  const recentSubmissions = Object.entries(data.personalDocs)
+    .flatMap(([studentId, doc]) => (doc.homework || []).filter((h) => h.status === "checked").map((h) => ({ ...h, studentId })))
+    .sort((a, b) => (b.date || "").localeCompare(a.date || ""))
+    .slice(0, 8);
+  const firstLine = (text) => (text || "").split("\n").find((l) => l.trim()) || "";
+
   return (
     <div>
       <SectionTitle sub="After each class, leave notes on what you covered and assign homework — students get instant AI feedback when they submit.">Personal documents</SectionTitle>
+      {recentSubmissions.length > 0 && (
+        <Card className="p-5 mb-5">
+          <h3 className="font-medium mb-3" style={{ fontFamily: "Georgia, serif" }}>Recently submitted homework</h3>
+          <div className="space-y-2">
+            {recentSubmissions.map((h) => (
+              <button key={h.id} onClick={() => setSelected(h.studentId)} className="w-full text-left rounded-lg p-3 hover:opacity-90" style={{ backgroundColor: CARD_BEIGE }}>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">{data.students.find((s) => s.id === h.studentId)?.name || "?"} — {h.title}</span>
+                  <span className="text-xs" style={{ color: MUTED }}>{h.date}</span>
+                </div>
+                <div className="text-xs mt-1" style={{ color: MUTED }}>{firstLine(h.aiFeedback)}</div>
+              </button>
+            ))}
+          </div>
+        </Card>
+      )}
       {data.students.length === 0 ? <EmptyState text="Add students first." /> : (
         <>
           <div className="mb-5"><Select value={selected} onChange={(e) => setSelected(e.target.value)}>{data.students.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</Select></div>
@@ -845,7 +867,7 @@ function TeacherFlashcards({ data, refresh }) {
   const labelForTarget = (t) => (t.type === "group" ? data.groups.find((g) => g.id === t.id)?.name : data.students.find((s) => s.id === t.id)?.name) || "Deleted";
   const targetLabel = (f) => {
     const targets = effectiveTargets(f);
-    return targets.length === 0 ? "Everyone" : targets.map(labelForTarget).join(", ");
+    return targets.length === 0 ? "Not assigned yet (hidden from students)" : targets.map(labelForTarget).join(", ");
   };
 
   const toggleFormTarget = (key) => setForm((f) => ({
@@ -930,7 +952,7 @@ function TeacherFlashcards({ data, refresh }) {
             return <button key={key} type="button" onClick={() => toggleFormTarget(key)} className="text-xs px-3 py-1.5 rounded-full" style={{ backgroundColor: active ? GREEN : CARD_BEIGE, color: active ? "white" : INK }}>{s.name}</button>;
           })}
         </div>
-        <p className="text-xs mb-3" style={{ color: MUTED }}>{form.targets.length === 0 ? "No one selected — this card will be visible to everyone." : `${form.targets.length} selected: ${form.targets.map((k) => labelForTarget({ type: k.startsWith("group:") ? "group" : "student", id: k.split(":")[1] })).join(", ")}`}</p>
+        <p className="text-xs mb-3" style={{ color: MUTED }}>{form.targets.length === 0 ? "No one selected — this card won't be visible to any student until you assign it below." : `${form.targets.length} selected: ${form.targets.map((k) => labelForTarget({ type: k.startsWith("group:") ? "group" : "student", id: k.split(":")[1] })).join(", ")}`}</p>
 
         <div className="mb-2"><Btn variant="ghost" onClick={generate} disabled={generating || !form.word.trim()}>{generating ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />} Generate with AI</Btn></div>
         {genError && <p className="text-xs mb-2" style={{ color: "#b3432b" }}>{genError}</p>}
@@ -951,7 +973,7 @@ function TeacherFlashcards({ data, refresh }) {
 
       <div className="mb-3"><Select value={filterTarget} onChange={(e) => setFilterTarget(e.target.value)}>
         <option value="all">Showing: All flashcards</option>
-        <option value="everyone">Everyone (unassigned)</option>
+        <option value="everyone">Not assigned yet (hidden from students)</option>
         {data.groups.map((g) => <option key={g.id} value={`group:${g.id}`}>{g.name}</option>)}
         {data.students.map((s) => <option key={s.id} value={`student:${s.id}`}>{s.name}</option>)}
       </Select></div>
@@ -984,7 +1006,7 @@ function TeacherFlashcards({ data, refresh }) {
               return <button key={key} type="button" onClick={() => toggleEditTarget(key)} className="text-xs px-3 py-1.5 rounded-full" style={{ backgroundColor: active ? GREEN : CARD_BEIGE, color: active ? "white" : INK }}>{s.name}</button>;
             })}
           </div>
-          <p className="text-xs mb-3" style={{ color: MUTED }}>{editTargets.length === 0 ? "No one selected — this card will be visible to everyone." : `${editTargets.length} selected.`}</p>
+          <p className="text-xs mb-3" style={{ color: MUTED }}>{editTargets.length === 0 ? "No one selected — this card won't be visible to any student until you assign it." : `${editTargets.length} selected.`}</p>
           <Btn onClick={saveEdit} className="w-full justify-center">Save</Btn>
         </Modal>
       )}
