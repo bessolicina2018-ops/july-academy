@@ -241,6 +241,19 @@ function RichEditor({ value, onChange, onBlur, placeholder, minHeight = 160 }) {
         }
       }
     }
+    // Google Docs (and some other sources) don't put a raw image file on the
+    // clipboard — they put an <img> tag pointing at a hosted URL instead.
+    if (html) {
+      const imgMatch = html.match(/<img[^>]+src=["']([^"']+)["']/i);
+      if (imgMatch) {
+        e.preventDefault();
+        const el = ref.current;
+        const start = el ? el.selectionStart : value.length;
+        const end = el ? el.selectionEnd : value.length;
+        onChange(value.slice(0, start) + `\n![](${imgMatch[1]})\n` + value.slice(end));
+        return;
+      }
+    }
   };
   const tbBtn = "text-xs px-2 py-1 rounded";
   return (
