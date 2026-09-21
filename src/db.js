@@ -141,6 +141,7 @@ export async function fetchAll() {
       profileId: s.profile_id,
       email: s.email || "",
       whatsapp: s.whatsapp || "",
+      lastLoginAt: s.last_login_at,
     })),
     groups: groups || [],
     timetableSlots: (slots || []).map((s) => ({
@@ -206,7 +207,7 @@ export async function removeGroup(id) {
   await supabase.from("groups").delete().eq("id", id);
 }
 
-export async function addSlot({ date, time, duration, label, audienceType, groupId, studentId }) {
+function buildSlotRow({ date, time, duration, label, audienceType, groupId, studentId }) {
   const row = {
     date,
     time,
@@ -224,7 +225,20 @@ export async function addSlot({ date, time, duration, label, audienceType, group
     row.booked_by = studentId;
     row.status = "booked";
   }
-  await supabase.from("timetable_slots").insert(row);
+  return row;
+}
+export async function addSlot(fields) {
+  await supabase.from("timetable_slots").insert(buildSlotRow(fields));
+}
+export async function addRepeatingSlots(fields, weeks) {
+  const rows = [];
+  const [y, m, d] = fields.date.split("-").map(Number);
+  for (let i = 0; i < weeks; i++) {
+    const dt = new Date(y, m - 1, d + i * 7);
+    const dateStr = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+    rows.push(buildSlotRow({ ...fields, date: dateStr }));
+  }
+  await supabase.from("timetable_slots").insert(rows);
 }
 export async function removeSlot(id) {
   await supabase.from("timetable_slots").delete().eq("id", id);

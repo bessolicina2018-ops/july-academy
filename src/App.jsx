@@ -648,8 +648,19 @@ function StudentProfileSummary({ profile, student }) {
 
 function TeacherTimetable({ data, refresh }) {
   const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ date: "", time: "", duration: "60", label: "", audienceType: "open", groupId: "", studentId: "" });
-  const addSlot = async () => { if (!form.date || !form.time) return; await db.addSlot({ ...form, duration: Number(form.duration) }); setForm({ date: "", time: "", duration: "60", label: "", audienceType: "open", groupId: "", studentId: "" }); setShowAdd(false); refresh(); };
+  const [form, setForm] = useState({ date: "", time: "", duration: "60", label: "", audienceType: "open", groupId: "", studentId: "", repeatWeeks: "1" });
+  const addSlot = async () => {
+    if (!form.date || !form.time) return;
+    const weeks = Math.max(1, Number(form.repeatWeeks) || 1);
+    if (weeks > 1) {
+      await db.addRepeatingSlots({ ...form, duration: Number(form.duration) }, weeks);
+    } else {
+      await db.addSlot({ ...form, duration: Number(form.duration) });
+    }
+    setForm({ date: "", time: "", duration: "60", label: "", audienceType: "open", groupId: "", studentId: "", repeatWeeks: "1" });
+    setShowAdd(false);
+    refresh();
+  };
   const removeSlot = async (id) => { await db.removeSlot(id); refresh(); };
   const sorted = [...data.timetableSlots].sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
   const now = new Date().toISOString().slice(0, 10);
@@ -707,6 +718,11 @@ function TeacherTimetable({ data, refresh }) {
             {form.audienceType === "individual-fixed" && (
               <div><label className="text-xs" style={{ color: MUTED }}>Student</label><Select value={form.studentId} onChange={(e) => setForm({ ...form, studentId: e.target.value })}><option value="">Select student</option>{data.students.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</Select></div>
             )}
+            <div>
+              <label className="text-xs" style={{ color: MUTED }}>Repeat weekly for how many weeks?</label>
+              <Input type="number" min="1" max="52" value={form.repeatWeeks} onChange={(e) => setForm({ ...form, repeatWeeks: e.target.value })} />
+              <p className="text-[11px] mt-1" style={{ color: MUTED }}>Leave at 1 for a single class, or set e.g. 12 to create the same weekly slot every week for 12 weeks at once.</p>
+            </div>
             <Btn onClick={addSlot} className="w-full justify-center">Add to timetable</Btn>
           </div>
         </Modal>
