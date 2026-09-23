@@ -39,27 +39,50 @@ function fillBlanksIntoText(text, values) {
 }
 
 function BlankWorksheet({ text, values, onChange, disabled }) {
-  const parts = (text || "").split(/(_{3,})/g);
+  const lines = (text || "").split("\n");
   let blankIndex = -1;
   return (
-    <div className="text-sm leading-relaxed whitespace-pre-wrap" style={{ color: INK }}>
-      {parts.map((part, i) => {
-        if (/^_{3,}$/.test(part)) {
+    <div className="text-sm leading-relaxed" style={{ color: INK }}>
+      {lines.map((line, li) => {
+        const trimmed = line.trim();
+        if (/^_{3,}$/.test(trimmed)) {
           blankIndex++;
           const idx = blankIndex;
-          const val = values[idx] || "";
           return (
-            <input
-              key={i}
-              value={val}
+            <textarea
+              key={li}
+              value={values[idx] || ""}
               disabled={disabled}
               onChange={(e) => onChange(idx, e.target.value)}
-              className="inline-block mx-1 px-1 border-b-2 bg-transparent outline-none align-baseline"
-              style={{ borderColor: disabled ? BORDER : GREEN, minWidth: 60, width: Math.max(60, val.length * 8 + 20), color: INK }}
+              placeholder="Write your answer here..."
+              className="w-full my-2 rounded-lg px-3 py-2 text-sm outline-none resize-y"
+              style={{ border: `2px solid ${disabled ? BORDER : GREEN}`, minHeight: 70, color: INK, backgroundColor: "white" }}
             />
           );
         }
-        return <React.Fragment key={i}>{part}</React.Fragment>;
+        const parts = line.split(/(_{3,})/g);
+        return (
+          <div key={li} className="whitespace-pre-wrap" style={{ minHeight: trimmed === "" ? "0.6em" : undefined }}>
+            {parts.map((part, pi) => {
+              if (/^_{3,}$/.test(part)) {
+                blankIndex++;
+                const idx = blankIndex;
+                const val = values[idx] || "";
+                return (
+                  <input
+                    key={pi}
+                    value={val}
+                    disabled={disabled}
+                    onChange={(e) => onChange(idx, e.target.value)}
+                    className="inline-block mx-1 px-1 border-b-2 bg-transparent outline-none align-baseline"
+                    style={{ borderColor: disabled ? BORDER : GREEN, minWidth: 60, width: Math.max(60, val.length * 8 + 20), color: INK }}
+                  />
+                );
+              }
+              return <React.Fragment key={pi}>{part}</React.Fragment>;
+            })}
+          </div>
+        );
       })}
     </div>
   );
@@ -824,7 +847,11 @@ function TeacherDocs({ data, refresh }) {
         <Modal title="Assign homework" onClose={() => setShowTask(false)}>
           <div className="space-y-3">
             <div><label className="text-xs" style={{ color: MUTED }}>Title</label><Input value={taskForm.title} onChange={(e) => setTaskForm({ ...taskForm, title: e.target.value })} /></div>
-            <div><label className="text-xs" style={{ color: MUTED }}>Instructions</label><Textarea value={taskForm.instructions} onChange={(e) => setTaskForm({ ...taskForm, instructions: e.target.value })} /></div>
+            <div>
+              <label className="text-xs" style={{ color: MUTED }}>Instructions</label>
+              <Textarea value={taskForm.instructions} onChange={(e) => setTaskForm({ ...taskForm, instructions: e.target.value })} />
+              <p className="text-[11px] mt-1" style={{ color: MUTED }}>Tip: for a short fill-in-the-blank, put ___ (3+ underscores) right in the sentence. For an open question, put a line of underscores by itself, on its own line, right after the question — it becomes its own answer box in that exact spot.</p>
+            </div>
             <Btn onClick={assign} className="w-full justify-center">Assign</Btn>
           </div>
         </Modal>
@@ -1167,6 +1194,7 @@ function TeacherIntensive({ data, refresh }) {
           <div className="space-y-3">
             <Input value={taskForm.title} onChange={(e) => setTaskForm({ ...taskForm, title: e.target.value })} placeholder="Task title" />
             <Textarea value={taskForm.instructions} onChange={(e) => setTaskForm({ ...taskForm, instructions: e.target.value })} placeholder="Instructions" />
+            <p className="text-[11px]" style={{ color: MUTED }}>Tip: ___ inline makes a short blank; a line of underscores by itself makes a full answer box for an open question.</p>
             <Btn onClick={addTask} className="w-full justify-center">Create task</Btn>
           </div>
         </Modal>
@@ -1236,6 +1264,7 @@ function TeacherPrerecorded({ data, refresh }) {
           <div className="space-y-3">
             <Input value={taskForm.title} onChange={(e) => setTaskForm({ ...taskForm, title: e.target.value })} placeholder="Task title" />
             <Textarea value={taskForm.instructions} onChange={(e) => setTaskForm({ ...taskForm, instructions: e.target.value })} placeholder="Instructions" />
+            <p className="text-[11px]" style={{ color: MUTED }}>Tip: ___ inline makes a short blank; a line of underscores by itself makes a full answer box for an open question.</p>
             <Btn onClick={addTask} className="w-full justify-center">Add</Btn>
           </div>
         </Modal>
