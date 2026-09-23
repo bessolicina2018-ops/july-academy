@@ -25,6 +25,7 @@ export async function fetchAll() {
     { data: flashcardAssignments },
     { data: grammarGuides },
     { data: teacherInvites },
+    { data: watchlistEntries },
   ] = await Promise.all([
     supabase.from("students").select("*"),
     supabase.from("groups").select("*"),
@@ -44,6 +45,7 @@ export async function fetchAll() {
     supabase.from("flashcard_assignments").select("*"),
     supabase.from("grammar_guides").select("*").order("position"),
     supabase.from("teacher_invites").select("*").order("created_at", { ascending: false }),
+    supabase.from("watchlist_entries").select("*").order("created_at", { ascending: false }),
   ]);
 
   const curriculum = { A1: [], A2: [], B1: [], B2: [] };
@@ -179,6 +181,7 @@ export async function fetchAll() {
     prerecordedCourses,
     studentProfiles,
     grammarGuides: (grammarGuides || []).map((g) => ({ id: g.id, title: g.title, content: g.content || "" })),
+    watchlistEntries: (watchlistEntries || []).map((w) => ({ id: w.id, studentId: w.student_id, title: w.title, type: w.type, level: w.level, favoritePhrase: w.favorite_phrase || "" })),
     teacherInvites: (teacherInvites || []).map((t) => ({ code: t.code, used: t.used, createdAt: t.created_at })),
   };
 }
@@ -307,6 +310,12 @@ export async function renameGrammarGuide(id, title) {
 }
 export async function removeGrammarGuide(id) {
   await supabase.from("grammar_guides").delete().eq("id", id);
+}
+export async function addWatchlistEntry(studentId, { title, type, level, favoritePhrase }) {
+  await supabase.from("watchlist_entries").insert({ student_id: studentId, title, type, level, favorite_phrase: favoritePhrase });
+}
+export async function removeWatchlistEntry(id) {
+  await supabase.from("watchlist_entries").delete().eq("id", id);
 }
 export async function removeFlashcard(id) {
   await supabase.from("flashcards").delete().eq("id", id);

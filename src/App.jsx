@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   Calendar, FileText, Headphones, Layers, GraduationCap, Video, CheckCircle2,
   Circle, Plus, X, Send, Loader2, Users, LogOut, ChevronRight, Sparkles,
-  Trash2, Info, ChevronLeft, AlertCircle, BookOpen, Shield,
+  Trash2, Info, ChevronLeft, AlertCircle, BookOpen, Shield, PlayCircle,
 } from "lucide-react";
 import { supabase } from "./supabaseClient";
 import * as db from "./db";
@@ -897,6 +897,7 @@ function TeacherDocs({ data, refresh }) {
 function TeacherResources({ data, refresh }) {
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ type: "video", title: "", url: "", description: "" });
+  const [expanded, setExpanded] = useState(null);
   const add = async () => { if (!form.title.trim()) return; await db.addResource(form); setForm({ type: "video", title: "", url: "", description: "" }); setShowAdd(false); refresh(); };
   const remove = async (id) => { await db.removeResource(id); refresh(); };
   const icons = { video: Video, podcast: Headphones, info: Info };
@@ -910,25 +911,32 @@ function TeacherResources({ data, refresh }) {
         <div className="grid gap-2">
           {data.resources.map((r) => {
             const Icon = icons[r.type] || Info;
+            const isOpen = expanded === r.id;
             return (
-              <Card key={r.id} className="p-4 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <Icon size={18} color={GREEN} />
-                  <div><div className="text-sm font-medium">{r.title}</div><div className="text-xs" style={{ color: MUTED }}>{r.description}</div></div>
+              <Card key={r.id} className="p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <button onClick={() => setExpanded(isOpen ? null : r.id)} className="flex items-center gap-3 flex-1 text-left">
+                    <Icon size={18} color={GREEN} />
+                    <div className="text-sm font-medium">{r.title}</div>
+                  </button>
+                  <div className="flex items-center gap-2">
+                    {r.url && <a href={r.url} target="_blank" rel="noreferrer" className="text-xs underline" style={{ color: GREEN }}>Open link</a>}
+                    <button onClick={() => remove(r.id)}><Trash2 size={15} color="#b3432b" /></button>
+                  </div>
                 </div>
-                <button onClick={() => remove(r.id)}><Trash2 size={15} color="#b3432b" /></button>
+                {isOpen && r.description && <div className="mt-3"><RichDoc text={r.description} /></div>}
               </Card>
             );
           })}
         </div>
       )}
       {showAdd && (
-        <Modal title="Add resource" onClose={() => setShowAdd(false)}>
+        <Modal title="Add resource" onClose={() => setShowAdd(false)} wide>
           <div className="space-y-3">
             <Select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}><option value="video">Video</option><option value="podcast">Podcast</option><option value="info">Useful info</option></Select>
             <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Title" />
             <Input value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} placeholder="Link (optional)" />
-            <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Short description" />
+            <RichEditor value={form.description} onChange={(v) => setForm({ ...form, description: v })} placeholder="Description — use the formatting tools for headings, tables, lists..." minHeight={140} />
             <Btn onClick={add} className="w-full justify-center">Add</Btn>
           </div>
         </Modal>
@@ -1380,6 +1388,7 @@ function StudentApp({ data, refresh, student, onLogout }) {
     ...(student?.intensiveGroupId ? [{ key: "intensive", label: "Intensive classroom", icon: GraduationCap }] : []),
     { key: "courses", label: "My courses", icon: Video },
     { key: "guides", label: "Grammar guides", icon: BookOpen },
+    { key: "watchlist", label: "My watchlist", icon: PlayCircle },
     { key: "profile", label: "My profile", icon: FileText, badge: needsProfile },
   ];
   if (!student) return null;
@@ -1393,6 +1402,7 @@ function StudentApp({ data, refresh, student, onLogout }) {
       {active === "intensive" && <StudentIntensive data={data} refresh={refresh} student={student} />}
       {active === "courses" && <StudentCourses data={data} refresh={refresh} student={student} />}
       {active === "guides" && <StudentGrammarGuides data={data} />}
+      {active === "watchlist" && <StudentWatchlist data={data} refresh={refresh} student={student} />}
       {active === "profile" && <StudentProfileForm data={data} refresh={refresh} student={student} />}
       {showPrompt && (
         <Modal title="Tell us about yourself" onClose={() => setShowPrompt(false)}>
@@ -1606,6 +1616,7 @@ function StudentDocs({ data, refresh, student }) {
 
 function StudentResources({ data }) {
   const icons = { video: Video, podcast: Headphones, info: Info };
+  const [expanded, setExpanded] = useState(null);
   return (
     <div>
       <SectionTitle>Resources</SectionTitle>
@@ -1613,10 +1624,17 @@ function StudentResources({ data }) {
         <div className="grid gap-2">
           {data.resources.map((r) => {
             const Icon = icons[r.type] || Info;
+            const isOpen = expanded === r.id;
             return (
-              <Card key={r.id} className="p-4 flex items-center gap-3">
-                <Icon size={18} color={GREEN} />
-                <div><div className="text-sm font-medium">{r.title}</div><div className="text-xs" style={{ color: MUTED }}>{r.description}</div>{r.url && <a href={r.url} target="_blank" rel="noreferrer" className="text-xs underline" style={{ color: GREEN }}>Open</a>}</div>
+              <Card key={r.id} className="p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <button onClick={() => setExpanded(isOpen ? null : r.id)} className="flex items-center gap-3 flex-1 text-left">
+                    <Icon size={18} color={GREEN} />
+                    <div className="text-sm font-medium">{r.title}</div>
+                  </button>
+                  {r.url && <a href={r.url} target="_blank" rel="noreferrer" className="text-xs underline" style={{ color: GREEN }}>Open</a>}
+                </div>
+                {isOpen && r.description && <div className="mt-3"><RichDoc text={r.description} /></div>}
               </Card>
             );
           })}
@@ -1871,6 +1889,55 @@ function StudentGrammarGuides({ data }) {
           </Select></div>
           {guide && <Card className="p-6">{guide.content ? <RichDoc text={guide.content} /> : <p className="text-sm" style={{ color: MUTED }}>Nothing posted yet.</p>}</Card>}
         </>
+      )}
+    </div>
+  );
+}
+
+const WATCHLIST_TYPES = ["Movie", "Series", "Podcast", "YouTube channel"];
+
+function StudentWatchlist({ data, refresh, student }) {
+  const [form, setForm] = useState({ title: "", type: "Movie", level: student.level || "A1", favoritePhrase: "" });
+  const mine = data.watchlistEntries.filter((w) => w.studentId === student.id);
+
+  const add = async () => {
+    if (!form.title.trim()) return;
+    await db.addWatchlistEntry(student.id, form);
+    setForm({ title: "", type: form.type, level: form.level, favoritePhrase: "" });
+    refresh();
+  };
+  const remove = async (id) => { await db.removeWatchlistEntry(id); refresh(); };
+
+  return (
+    <div>
+      <SectionTitle sub="Track what you watch or listen to, and save your favourite word or phrase from each one.">My watchlist</SectionTitle>
+      <Card className="p-5 mb-5">
+        <div className="grid md:grid-cols-2 gap-2 mb-2">
+          <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Title (e.g. Coco, Notes in Spanish...)" />
+          <div className="flex gap-2">
+            <Select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
+              {WATCHLIST_TYPES.map((t) => <option key={t}>{t}</option>)}
+            </Select>
+            <Select value={form.level} onChange={(e) => setForm({ ...form, level: e.target.value })} className="w-24 flex-none">
+              {LEVELS.map((l) => <option key={l}>{l}</option>)}
+            </Select>
+          </div>
+        </div>
+        <Input value={form.favoritePhrase} onChange={(e) => setForm({ ...form, favoritePhrase: e.target.value })} placeholder="Favourite word or phrase you picked up (optional)" />
+        <div className="mt-3"><Btn onClick={add}><Plus size={14} />Add to watchlist</Btn></div>
+      </Card>
+      {mine.length === 0 ? <EmptyState text="Nothing tracked yet — add what you're watching or listening to." /> : (
+        <div className="grid gap-2">
+          {mine.map((w) => (
+            <Card key={w.id} className="p-4 flex items-center justify-between gap-3">
+              <div>
+                <div className="text-sm font-medium">{w.title} <span className="text-xs font-normal" style={{ color: MUTED }}>· {w.type} · {w.level}</span></div>
+                {w.favoritePhrase && <div className="text-xs italic mt-1" style={{ color: MUTED }}>"{w.favoritePhrase}"</div>}
+              </div>
+              <button onClick={() => remove(w.id)}><Trash2 size={14} color="#b3432b" /></button>
+            </Card>
+          ))}
+        </div>
       )}
     </div>
   );
