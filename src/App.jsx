@@ -896,20 +896,27 @@ function TeacherDocs({ data, refresh }) {
 
 function TeacherResources({ data, refresh }) {
   const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ type: "video", title: "", url: "", description: "" });
+  const [form, setForm] = useState({ type: "video", title: "", url: "", description: "", level: "" });
   const [expanded, setExpanded] = useState(null);
-  const add = async () => { if (!form.title.trim()) return; await db.addResource(form); setForm({ type: "video", title: "", url: "", description: "" }); setShowAdd(false); refresh(); };
+  const [levelFilter, setLevelFilter] = useState("All");
+  const add = async () => { if (!form.title.trim()) return; await db.addResource({ ...form, level: form.level || null }); setForm({ type: "video", title: "", url: "", description: "", level: "" }); setShowAdd(false); refresh(); };
   const remove = async (id) => { await db.removeResource(id); refresh(); };
   const icons = { video: Video, podcast: Headphones, info: Info };
+  const filtered = levelFilter === "All" ? data.resources : data.resources.filter((r) => !r.level || r.level === levelFilter);
   return (
     <div>
       <div className="flex items-center justify-between">
         <SectionTitle sub="Videos, podcasts and useful info for your students to browse anytime.">Resources</SectionTitle>
         <Btn onClick={() => setShowAdd(true)}><Plus size={14} />Add resource</Btn>
       </div>
-      {data.resources.length === 0 ? <EmptyState text="No resources yet." /> : (
+      <div className="flex flex-wrap gap-2 mb-4">
+        {["All", "A1", "A2", "B1", "B2"].map((lv) => (
+          <button key={lv} onClick={() => setLevelFilter(lv)} className="text-xs px-3 py-1.5 rounded-full" style={{ backgroundColor: levelFilter === lv ? GREEN : CARD_BEIGE, color: levelFilter === lv ? "white" : INK }}>{lv}</button>
+        ))}
+      </div>
+      {filtered.length === 0 ? <EmptyState text="No resources at this level yet." /> : (
         <div className="grid gap-2">
-          {data.resources.map((r) => {
+          {filtered.map((r) => {
             const Icon = icons[r.type] || Info;
             const isOpen = expanded === r.id;
             return (
@@ -917,7 +924,7 @@ function TeacherResources({ data, refresh }) {
                 <div className="flex items-center justify-between gap-3">
                   <button onClick={() => setExpanded(isOpen ? null : r.id)} className="flex items-center gap-3 flex-1 text-left">
                     <Icon size={18} color={GREEN} />
-                    <div className="text-sm font-medium">{r.title}</div>
+                    <div className="text-sm font-medium">{r.title}{r.level && <span className="text-xs font-normal ml-2 px-1.5 py-0.5 rounded" style={{ backgroundColor: CARD_BEIGE, color: MUTED }}>{r.level}</span>}</div>
                   </button>
                   <div className="flex items-center gap-2">
                     {r.url && <a href={r.url} target="_blank" rel="noreferrer" className="text-xs underline" style={{ color: GREEN }}>Open link</a>}
@@ -933,7 +940,13 @@ function TeacherResources({ data, refresh }) {
       {showAdd && (
         <Modal title="Add resource" onClose={() => setShowAdd(false)} wide>
           <div className="space-y-3">
-            <Select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}><option value="video">Video</option><option value="podcast">Podcast</option><option value="info">Useful info</option></Select>
+            <div className="flex gap-2">
+              <Select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}><option value="video">Video</option><option value="podcast">Podcast</option><option value="info">Useful info</option></Select>
+              <Select value={form.level} onChange={(e) => setForm({ ...form, level: e.target.value })}>
+                <option value="">General (all levels)</option>
+                {LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
+              </Select>
+            </div>
             <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Title" />
             <Input value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} placeholder="Link (optional)" />
             <RichEditor value={form.description} onChange={(v) => setForm({ ...form, description: v })} placeholder="Description — use the formatting tools for headings, tables, lists..." minHeight={140} />
@@ -1396,7 +1409,7 @@ function StudentApp({ data, refresh, student, onLogout }) {
     <Shell roleLabel={`${student.name} · ${student.level}`} tabs={tabs} active={active} setActive={setActive} onLogout={onLogout}>
       {active === "timetable" && <StudentTimetable data={data} refresh={refresh} student={student} />}
       {active === "docs" && <StudentDocs data={data} refresh={refresh} student={student} />}
-      {active === "resources" && <StudentResources data={data} />}
+      {active === "resources" && <StudentResources data={data} student={student} />}
       {active === "flashcards" && <StudentFlashcards data={data} />}
       {active === "progress" && <StudentProgress data={data} student={student} />}
       {active === "intensive" && <StudentIntensive data={data} refresh={refresh} student={student} />}
@@ -1614,15 +1627,22 @@ function StudentDocs({ data, refresh, student }) {
   );
 }
 
-function StudentResources({ data }) {
+function StudentResources({ data, student }) {
   const icons = { video: Video, podcast: Headphones, info: Info };
   const [expanded, setExpanded] = useState(null);
+  const [levelFilter, setLevelFilter] = useState(student?.level && LEVELS.includes(student.level) ? student.level : "All");
+  const filtered = levelFilter === "All" ? data.resources : data.resources.filter((r) => !r.level || r.level === levelFilter);
   return (
     <div>
       <SectionTitle>Resources</SectionTitle>
-      {data.resources.length === 0 ? <EmptyState text="No resources yet." /> : (
+      <div className="flex flex-wrap gap-2 mb-4">
+        {["All", "A1", "A2", "B1", "B2"].map((lv) => (
+          <button key={lv} onClick={() => setLevelFilter(lv)} className="text-xs px-3 py-1.5 rounded-full" style={{ backgroundColor: levelFilter === lv ? GREEN : CARD_BEIGE, color: levelFilter === lv ? "white" : INK }}>{lv}</button>
+        ))}
+      </div>
+      {filtered.length === 0 ? <EmptyState text="No resources at this level yet." /> : (
         <div className="grid gap-2">
-          {data.resources.map((r) => {
+          {filtered.map((r) => {
             const Icon = icons[r.type] || Info;
             const isOpen = expanded === r.id;
             return (
@@ -1630,7 +1650,7 @@ function StudentResources({ data }) {
                 <div className="flex items-center justify-between gap-3">
                   <button onClick={() => setExpanded(isOpen ? null : r.id)} className="flex items-center gap-3 flex-1 text-left">
                     <Icon size={18} color={GREEN} />
-                    <div className="text-sm font-medium">{r.title}</div>
+                    <div className="text-sm font-medium">{r.title}{r.level && <span className="text-xs font-normal ml-2 px-1.5 py-0.5 rounded" style={{ backgroundColor: CARD_BEIGE, color: MUTED }}>{r.level}</span>}</div>
                   </button>
                   {r.url && <a href={r.url} target="_blank" rel="noreferrer" className="text-xs underline" style={{ color: GREEN }}>Open</a>}
                 </div>
