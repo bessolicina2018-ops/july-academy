@@ -33,6 +33,21 @@ const CORRECTION_PREFS = ["Correct every mistake", "Correct important mistakes o
 /* ---------------------------------------------------------------- */
 function countBlanks(text) { return ((text || "").match(/_{3,}/g) || []).length; }
 
+function addAnswerLinesAfterQuestions(text) {
+  const lines = (text || "").split("\n");
+  const out = [];
+  for (const line of lines) {
+    out.push(line);
+    const trimmed = line.trim();
+    const isHeader = /^(exercise|ejercicio)\b/i.test(trimmed) || (trimmed.endsWith(":") && trimmed.length < 60);
+    const hasBlank = /_{3,}/.test(trimmed);
+    if (trimmed !== "" && !isHeader && !hasBlank) {
+      out.push("________________________");
+    }
+  }
+  return out.join("\n");
+}
+
 function fillBlanksIntoText(text, values) {
   let i = -1;
   return (text || "").replace(/_{3,}/g, () => { i++; const v = (values[i] || "").trim(); return v ? v : "_____"; });
@@ -767,6 +782,10 @@ function TeacherDocs({ data, refresh }) {
   const assign = async () => { if (!taskForm.title.trim()) return; await db.assignHomework(selected, taskForm.title, taskForm.instructions); setTaskForm({ title: "", instructions: "" }); setShowTask(false); refresh(); };
   const startEdit = (n) => { setEditingNoteId(n.id); setEditDraft(n.text); };
   const saveEdit = async () => { await db.updateNote(editingNoteId, editDraft); setEditingNoteId(null); refresh(); };
+  const [editingHwId, setEditingHwId] = useState(null);
+  const [editHwDraft, setEditHwDraft] = useState("");
+  const startEditHw = (h) => { setEditingHwId(h.id); setEditHwDraft(h.instructions || ""); };
+  const saveHwEdit = async () => { await db.updateHomeworkInstructions(editingHwId, editHwDraft); setEditingHwId(null); refresh(); };
 
   const recentSubmissions = Object.entries(data.personalDocs)
     .flatMap(([studentId, doc]) => (doc.homework || []).filter((h) => h.status === "checked").map((h) => ({ ...h, studentId })))
@@ -833,7 +852,21 @@ function TeacherDocs({ data, refresh }) {
                       <div className="font-medium text-sm">{h.title}</div>
                       <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ backgroundColor: h.status === "checked" ? "#dcefdc" : "white", color: h.status === "checked" ? "#204d2c" : MUTED }}>{h.status}</span>
                     </div>
-                    <p className="text-xs mt-1 whitespace-pre-wrap" style={{ color: MUTED }}>{h.instructions}</p>
+                    {editingHwId === h.id ? (
+                      <div className="mt-2">
+                        <Textarea value={editHwDraft} onChange={(e) => setEditHwDraft(e.target.value)} style={{ minHeight: 160 }} />
+                        <div className="mt-1.5"><Btn variant="ghost" onClick={() => setEditHwDraft((v) => addAnswerLinesAfterQuestions(v))}><Plus size={13} />Add an answer box after every question</Btn></div>
+                        <div className="mt-2 flex gap-2">
+                          <Btn onClick={saveHwEdit}>Save</Btn>
+                          <Btn variant="ghost" onClick={() => setEditingHwId(null)}>Cancel</Btn>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="text-xs mt-1 whitespace-pre-wrap" style={{ color: MUTED }}>{h.instructions}</p>
+                        {h.status !== "checked" && <button onClick={() => startEditHw(h)} className="text-xs underline mt-1" style={{ color: GREEN }}>Edit instructions</button>}
+                      </>
+                    )}
                     {h.submissionText && <p className="text-xs mt-2 italic whitespace-pre-wrap" style={{ color: INK }}>"{h.submissionText}"</p>}
                     {h.aiFeedback && <Feedback text={h.aiFeedback} />}
                   </div>
@@ -850,7 +883,8 @@ function TeacherDocs({ data, refresh }) {
             <div>
               <label className="text-xs" style={{ color: MUTED }}>Instructions</label>
               <Textarea value={taskForm.instructions} onChange={(e) => setTaskForm({ ...taskForm, instructions: e.target.value })} />
-              <p className="text-[11px] mt-1" style={{ color: MUTED }}>Tip: for a short fill-in-the-blank, put ___ (3+ underscores) right in the sentence. For an open question, put a line of underscores by itself, on its own line, right after the question — it becomes its own answer box in that exact spot.</p>
+              <div className="mt-1.5"><Btn variant="ghost" onClick={() => setTaskForm((f) => ({ ...f, instructions: addAnswerLinesAfterQuestions(f.instructions) }))}><Plus size={13} />Add an answer box after every question</Btn></div>
+              <p className="text-[11px] mt-1" style={{ color: MUTED }}>This adds a blank line under every question that doesn't already have one — check the result and delete any you don't want. You can also type ___ inline for a short fill-in-the-blank instead.</p>
             </div>
             <Btn onClick={assign} className="w-full justify-center">Assign</Btn>
           </div>
@@ -1194,7 +1228,8 @@ function TeacherIntensive({ data, refresh }) {
           <div className="space-y-3">
             <Input value={taskForm.title} onChange={(e) => setTaskForm({ ...taskForm, title: e.target.value })} placeholder="Task title" />
             <Textarea value={taskForm.instructions} onChange={(e) => setTaskForm({ ...taskForm, instructions: e.target.value })} placeholder="Instructions" />
-            <p className="text-[11px]" style={{ color: MUTED }}>Tip: ___ inline makes a short blank; a line of underscores by itself makes a full answer box for an open question.</p>
+            <Btn variant="ghost" onClick={() => setTaskForm((f) => ({ ...f, instructions: addAnswerLinesAfterQuestions(f.instructions) }))}><Plus size={13} />Add an answer box after every question</Btn>
+            <p className="text-[11px]" style={{ color: MUTED }}>Adds a blank line under every question without one — review and delete any extras. ___ inline still works for short fill-ins.</p>
             <Btn onClick={addTask} className="w-full justify-center">Create task</Btn>
           </div>
         </Modal>
@@ -1264,7 +1299,8 @@ function TeacherPrerecorded({ data, refresh }) {
           <div className="space-y-3">
             <Input value={taskForm.title} onChange={(e) => setTaskForm({ ...taskForm, title: e.target.value })} placeholder="Task title" />
             <Textarea value={taskForm.instructions} onChange={(e) => setTaskForm({ ...taskForm, instructions: e.target.value })} placeholder="Instructions" />
-            <p className="text-[11px]" style={{ color: MUTED }}>Tip: ___ inline makes a short blank; a line of underscores by itself makes a full answer box for an open question.</p>
+            <Btn variant="ghost" onClick={() => setTaskForm((f) => ({ ...f, instructions: addAnswerLinesAfterQuestions(f.instructions) }))}><Plus size={13} />Add an answer box after every question</Btn>
+            <p className="text-[11px]" style={{ color: MUTED }}>Adds a blank line under every question without one — review and delete any extras. ___ inline still works for short fill-ins.</p>
             <Btn onClick={addTask} className="w-full justify-center">Add</Btn>
           </div>
         </Modal>

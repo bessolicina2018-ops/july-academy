@@ -352,6 +352,9 @@ export async function updateNote(id, text) {
 export async function assignHomework(studentId, title, instructions) {
   await supabase.from("homework").insert({ student_id: studentId, title, instructions });
 }
+export async function updateHomeworkInstructions(id, instructions) {
+  await supabase.from("homework").update({ instructions }).eq("id", id);
+}
 export async function submitHomework(id, submissionText, aiFeedback) {
   await supabase
     .from("homework")
