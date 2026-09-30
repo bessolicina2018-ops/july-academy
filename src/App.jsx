@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   Calendar, FileText, Headphones, Layers, GraduationCap, Video, CheckCircle2,
   Circle, Plus, X, Send, Loader2, Users, LogOut, ChevronRight, Sparkles,
-  Trash2, Info, ChevronLeft, AlertCircle, BookOpen, Shield, PlayCircle,
+  Trash2, Info, ChevronLeft, AlertCircle, BookOpen, Shield,
 } from "lucide-react";
 import { supabase } from "./supabaseClient";
 import * as db from "./db";
@@ -55,24 +55,43 @@ function fillBlanksIntoText(text, values) {
 
 function BlankWorksheet({ text, values, onChange, disabled }) {
   const lines = (text || "").split("\n");
+  const hasFullBox = lines.some((l) => /^_{3,}$/.test(l.trim()));
+  const hasInlineBlank = lines.some((l) => {
+    const t = l.trim();
+    return t !== "" && !/^_{3,}$/.test(t) && /_{3,}/.test(t);
+  });
   let blankIndex = -1;
+  let questionNum = 0;
   return (
     <div className="text-sm leading-relaxed" style={{ color: INK }}>
+      {(hasFullBox || hasInlineBlank) && (
+        <div className="text-[11px] mb-3 px-3 py-2 rounded-lg" style={{ backgroundColor: "#f4f1e8", color: MUTED }}>
+          {hasFullBox && hasInlineBlank
+            ? "Fill in the missing word right inside the sentence. For each full question below, write your answer in the green box underneath it."
+            : hasFullBox
+            ? "Write your answer in the green box under each question."
+            : "Fill in the missing word right inside each sentence."}
+        </div>
+      )}
       {lines.map((line, li) => {
         const trimmed = line.trim();
         if (/^_{3,}$/.test(trimmed)) {
           blankIndex++;
+          questionNum++;
           const idx = blankIndex;
+          const qn = questionNum;
           return (
-            <textarea
-              key={li}
-              value={values[idx] || ""}
-              disabled={disabled}
-              onChange={(e) => onChange(idx, e.target.value)}
-              placeholder="Write your answer here..."
-              className="w-full my-2 rounded-lg px-3 py-2 text-sm outline-none resize-y"
-              style={{ border: `2px solid ${disabled ? BORDER : GREEN}`, minHeight: 70, color: INK, backgroundColor: "white" }}
-            />
+            <div key={li} className="my-2">
+              <div className="text-[11px] font-semibold mb-1 uppercase tracking-wide" style={{ color: GREEN }}>Your answer{qn > 1 ? ` — question ${qn}` : ""}</div>
+              <textarea
+                value={values[idx] || ""}
+                disabled={disabled}
+                onChange={(e) => onChange(idx, e.target.value)}
+                placeholder="Write your answer here..."
+                className="w-full rounded-lg px-3 py-2 text-sm outline-none resize-y"
+                style={{ border: `2px solid ${disabled ? BORDER : GREEN}`, minHeight: 70, color: INK, backgroundColor: "white" }}
+              />
+            </div>
           );
         }
         const parts = line.split(/(_{3,})/g);
@@ -896,27 +915,20 @@ function TeacherDocs({ data, refresh }) {
 
 function TeacherResources({ data, refresh }) {
   const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ type: "video", title: "", url: "", description: "", level: "" });
+  const [form, setForm] = useState({ type: "video", title: "", url: "", description: "" });
   const [expanded, setExpanded] = useState(null);
-  const [levelFilter, setLevelFilter] = useState("All");
-  const add = async () => { if (!form.title.trim()) return; await db.addResource({ ...form, level: form.level || null }); setForm({ type: "video", title: "", url: "", description: "", level: "" }); setShowAdd(false); refresh(); };
+  const add = async () => { if (!form.title.trim()) return; await db.addResource(form); setForm({ type: "video", title: "", url: "", description: "" }); setShowAdd(false); refresh(); };
   const remove = async (id) => { await db.removeResource(id); refresh(); };
   const icons = { video: Video, podcast: Headphones, info: Info };
-  const filtered = levelFilter === "All" ? data.resources : data.resources.filter((r) => !r.level || r.level === levelFilter);
   return (
     <div>
       <div className="flex items-center justify-between">
         <SectionTitle sub="Videos, podcasts and useful info for your students to browse anytime.">Resources</SectionTitle>
         <Btn onClick={() => setShowAdd(true)}><Plus size={14} />Add resource</Btn>
       </div>
-      <div className="flex flex-wrap gap-2 mb-4">
-        {["All", "A1", "A2", "B1", "B2"].map((lv) => (
-          <button key={lv} onClick={() => setLevelFilter(lv)} className="text-xs px-3 py-1.5 rounded-full" style={{ backgroundColor: levelFilter === lv ? GREEN : CARD_BEIGE, color: levelFilter === lv ? "white" : INK }}>{lv}</button>
-        ))}
-      </div>
-      {filtered.length === 0 ? <EmptyState text="No resources at this level yet." /> : (
+      {data.resources.length === 0 ? <EmptyState text="No resources yet." /> : (
         <div className="grid gap-2">
-          {filtered.map((r) => {
+          {data.resources.map((r) => {
             const Icon = icons[r.type] || Info;
             const isOpen = expanded === r.id;
             return (
@@ -924,7 +936,7 @@ function TeacherResources({ data, refresh }) {
                 <div className="flex items-center justify-between gap-3">
                   <button onClick={() => setExpanded(isOpen ? null : r.id)} className="flex items-center gap-3 flex-1 text-left">
                     <Icon size={18} color={GREEN} />
-                    <div className="text-sm font-medium">{r.title}{r.level && <span className="text-xs font-normal ml-2 px-1.5 py-0.5 rounded" style={{ backgroundColor: CARD_BEIGE, color: MUTED }}>{r.level}</span>}</div>
+                    <div className="text-sm font-medium">{r.title}</div>
                   </button>
                   <div className="flex items-center gap-2">
                     {r.url && <a href={r.url} target="_blank" rel="noreferrer" className="text-xs underline" style={{ color: GREEN }}>Open link</a>}
@@ -940,13 +952,7 @@ function TeacherResources({ data, refresh }) {
       {showAdd && (
         <Modal title="Add resource" onClose={() => setShowAdd(false)} wide>
           <div className="space-y-3">
-            <div className="flex gap-2">
-              <Select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}><option value="video">Video</option><option value="podcast">Podcast</option><option value="info">Useful info</option></Select>
-              <Select value={form.level} onChange={(e) => setForm({ ...form, level: e.target.value })}>
-                <option value="">General (all levels)</option>
-                {LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
-              </Select>
-            </div>
+            <Select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}><option value="video">Video</option><option value="podcast">Podcast</option><option value="info">Useful info</option></Select>
             <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Title" />
             <Input value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} placeholder="Link (optional)" />
             <RichEditor value={form.description} onChange={(v) => setForm({ ...form, description: v })} placeholder="Description — use the formatting tools for headings, tables, lists..." minHeight={140} />
@@ -1401,7 +1407,6 @@ function StudentApp({ data, refresh, student, onLogout }) {
     ...(student?.intensiveGroupId ? [{ key: "intensive", label: "Intensive classroom", icon: GraduationCap }] : []),
     { key: "courses", label: "My courses", icon: Video },
     { key: "guides", label: "Grammar guides", icon: BookOpen },
-    { key: "watchlist", label: "My watchlist", icon: PlayCircle },
     { key: "profile", label: "My profile", icon: FileText, badge: needsProfile },
   ];
   if (!student) return null;
@@ -1409,13 +1414,12 @@ function StudentApp({ data, refresh, student, onLogout }) {
     <Shell roleLabel={`${student.name} · ${student.level}`} tabs={tabs} active={active} setActive={setActive} onLogout={onLogout}>
       {active === "timetable" && <StudentTimetable data={data} refresh={refresh} student={student} />}
       {active === "docs" && <StudentDocs data={data} refresh={refresh} student={student} />}
-      {active === "resources" && <StudentResources data={data} student={student} />}
+      {active === "resources" && <StudentResources data={data} />}
       {active === "flashcards" && <StudentFlashcards data={data} />}
       {active === "progress" && <StudentProgress data={data} student={student} />}
       {active === "intensive" && <StudentIntensive data={data} refresh={refresh} student={student} />}
       {active === "courses" && <StudentCourses data={data} refresh={refresh} student={student} />}
       {active === "guides" && <StudentGrammarGuides data={data} />}
-      {active === "watchlist" && <StudentWatchlist data={data} refresh={refresh} student={student} />}
       {active === "profile" && <StudentProfileForm data={data} refresh={refresh} student={student} />}
       {showPrompt && (
         <Modal title="Tell us about yourself" onClose={() => setShowPrompt(false)}>
@@ -1452,14 +1456,23 @@ function StudentProfileForm({ data, refresh, student, onDone }) {
   const profile = data.studentProfiles[student.id];
   const [form, setForm] = useState(() => emptyProfileFields(student, profile));
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(false);
+  const [savedOk, setSavedOk] = useState(false);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
   const save = async () => {
     setSaving(true);
-    await db.saveStudentProfile(student.id, form);
+    setSaveError(false);
+    setSavedOk(false);
+    try {
+      await db.saveStudentProfile(student.id, form);
+      refresh();
+      setSavedOk(true);
+      if (onDone) onDone();
+    } catch (e) {
+      setSaveError(true);
+    }
     setSaving(false);
-    refresh();
-    if (onDone) onDone();
   };
 
   return (
@@ -1517,9 +1530,13 @@ function StudentProfileForm({ data, refresh, student, onDone }) {
           <div className="mt-2"><Select value={form.correctionPreference} onChange={(e) => set("correctionPreference", e.target.value)}><option value="">Select...</option>{CORRECTION_PREFS.map((c) => <option key={c}>{c}</option>)}</Select></div>
         </Card>
 
-        <Btn onClick={save} disabled={saving} className="justify-center">
-          {saving ? <Loader2 size={14} className="animate-spin" /> : null} Save my profile
-        </Btn>
+        <div className="flex items-center gap-3">
+          <Btn onClick={save} disabled={saving} className="justify-center">
+            {saving ? <Loader2 size={14} className="animate-spin" /> : null} Save my profile
+          </Btn>
+          {savedOk && <span className="text-xs flex items-center gap-1" style={{ color: GREEN }}><CheckCircle2 size={13} />Saved — this will still be here next time you log in.</span>}
+          {saveError && <span className="text-xs flex items-center gap-1" style={{ color: "#b3432b" }}><AlertCircle size={13} />Couldn't save, please try again.</span>}
+        </div>
       </div>
     </div>
   );
@@ -1557,16 +1574,52 @@ function StudentTimetable({ data, refresh, student }) {
   );
 }
 
+function parseDraft(raw) {
+  if (!raw) return { extra: "", blanks: [] };
+  try {
+    const p = JSON.parse(raw);
+    return { extra: p.extra || "", blanks: p.blanks || [] };
+  } catch {
+    return { extra: "", blanks: [] };
+  }
+}
+
 function StudentDocs({ data, refresh, student }) {
   const doc = data.personalDocs[student.id] || { notes: [], homework: [] };
-  const [drafts, setDrafts] = useState({});
-  const [blankAnswers, setBlankAnswers] = useState({});
+  const [drafts, setDrafts] = useState(() => {
+    const d = {};
+    doc.homework.forEach((h) => { d[h.id] = parseDraft(h.draftAnswer).extra; });
+    return d;
+  });
+  const [blankAnswers, setBlankAnswers] = useState(() => {
+    const b = {};
+    doc.homework.forEach((h) => { b[h.id] = parseDraft(h.draftAnswer).blanks; });
+    return b;
+  });
   const [loadingId, setLoadingId] = useState(null);
   const [errId, setErrId] = useState(null);
+  const [savedId, setSavedId] = useState(null);
+  const draftTimers = useRef({});
+  const queueDraftSave = (hwId, nextDrafts, nextBlanks) => {
+    clearTimeout(draftTimers.current[hwId]);
+    draftTimers.current[hwId] = setTimeout(() => {
+      db.saveHomeworkDraft(hwId, JSON.stringify({ extra: nextDrafts[hwId] || "", blanks: nextBlanks[hwId] || [] })).then(() => {
+        setSavedId(hwId);
+        setTimeout(() => setSavedId((id) => (id === hwId ? null : id)), 1500);
+      }).catch(() => {});
+    }, 900);
+  };
   const setBlank = (hwId, idx, val) => setBlankAnswers((prev) => {
     const arr = [...(prev[hwId] || [])];
     arr[idx] = val;
-    return { ...prev, [hwId]: arr };
+    const next = { ...prev, [hwId]: arr };
+    queueDraftSave(hwId, drafts, next);
+    return next;
+  });
+  const setDraftText = (hwId, val) => setDrafts((prev) => {
+    const next = { ...prev, [hwId]: val };
+    queueDraftSave(hwId, next, blankAnswers);
+    return next;
   });
   const submit = async (hwId) => {
     const hw = doc.homework.find((h) => h.id === hwId);
@@ -1580,6 +1633,7 @@ function StudentDocs({ data, refresh, student }) {
     try {
       const feedback = await getAIFeedback({ instructions: hw.instructions, submissionText: text, level: student.level });
       await db.submitHomework(hwId, text, feedback);
+      await db.saveHomeworkDraft(hwId, null);
       refresh();
     } catch (e) { setErrId(hwId); }
     setLoadingId(null);
@@ -1610,10 +1664,12 @@ function StudentDocs({ data, refresh, student }) {
                         <BlankWorksheet text={h.instructions} values={blankAnswers[h.id] || []} onChange={(idx, val) => setBlank(h.id, idx, val)} />
                       </div>
                     )}
-                    <Textarea className="mt-2" value={drafts[h.id] ?? ""} onChange={(e) => setDrafts({ ...drafts, [h.id]: e.target.value })} placeholder={blanks > 0 ? "Anything else to answer — translations, open questions, multiple choice, etc." : "Write your answer in Spanish..."} />
+                    {blanks > 0 && <div className="text-[11px] mt-3 mb-1" style={{ color: MUTED }}>Anything else to add? (optional)</div>}
+                    <Textarea className="mt-2" value={drafts[h.id] ?? ""} onChange={(e) => setDraftText(h.id, e.target.value)} placeholder={blanks > 0 ? "Translations, open questions, multiple choice, etc." : "Write your answer in Spanish..."} />
                     <div className="mt-2 flex items-center gap-2">
                       <Btn onClick={() => submit(h.id)} disabled={loadingId === h.id}>{loadingId === h.id ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} Submit for AI feedback</Btn>
                       {errId === h.id && <span className="text-xs flex items-center gap-1" style={{ color: "#b3432b" }}><AlertCircle size={13} />Couldn't get feedback, try again.</span>}
+                      {savedId === h.id && <span className="text-xs flex items-center gap-1" style={{ color: MUTED }}><CheckCircle2 size={12} />Draft saved</span>}
                     </div>
                   </>
                 )}
@@ -1627,22 +1683,15 @@ function StudentDocs({ data, refresh, student }) {
   );
 }
 
-function StudentResources({ data, student }) {
+function StudentResources({ data }) {
   const icons = { video: Video, podcast: Headphones, info: Info };
   const [expanded, setExpanded] = useState(null);
-  const [levelFilter, setLevelFilter] = useState(student?.level && LEVELS.includes(student.level) ? student.level : "All");
-  const filtered = levelFilter === "All" ? data.resources : data.resources.filter((r) => !r.level || r.level === levelFilter);
   return (
     <div>
       <SectionTitle>Resources</SectionTitle>
-      <div className="flex flex-wrap gap-2 mb-4">
-        {["All", "A1", "A2", "B1", "B2"].map((lv) => (
-          <button key={lv} onClick={() => setLevelFilter(lv)} className="text-xs px-3 py-1.5 rounded-full" style={{ backgroundColor: levelFilter === lv ? GREEN : CARD_BEIGE, color: levelFilter === lv ? "white" : INK }}>{lv}</button>
-        ))}
-      </div>
-      {filtered.length === 0 ? <EmptyState text="No resources at this level yet." /> : (
+      {data.resources.length === 0 ? <EmptyState text="No resources yet." /> : (
         <div className="grid gap-2">
-          {filtered.map((r) => {
+          {data.resources.map((r) => {
             const Icon = icons[r.type] || Info;
             const isOpen = expanded === r.id;
             return (
@@ -1650,7 +1699,7 @@ function StudentResources({ data, student }) {
                 <div className="flex items-center justify-between gap-3">
                   <button onClick={() => setExpanded(isOpen ? null : r.id)} className="flex items-center gap-3 flex-1 text-left">
                     <Icon size={18} color={GREEN} />
-                    <div className="text-sm font-medium">{r.title}{r.level && <span className="text-xs font-normal ml-2 px-1.5 py-0.5 rounded" style={{ backgroundColor: CARD_BEIGE, color: MUTED }}>{r.level}</span>}</div>
+                    <div className="text-sm font-medium">{r.title}</div>
                   </button>
                   {r.url && <a href={r.url} target="_blank" rel="noreferrer" className="text-xs underline" style={{ color: GREEN }}>Open</a>}
                 </div>
@@ -1720,13 +1769,39 @@ function StudentProgress({ data, student }) {
 function StudentIntensive({ data, refresh, student }) {
   const cohort = data.intensiveCourses.find((c) => c.id === student.intensiveGroupId);
   const tasks = cohort?.students[student.id]?.tasks || [];
-  const [drafts, setDrafts] = useState({});
-  const [blankAnswers, setBlankAnswers] = useState({});
+  const [drafts, setDrafts] = useState(() => {
+    const d = {};
+    tasks.forEach((t) => { d[t.id] = parseDraft(t.draftAnswer).extra; });
+    return d;
+  });
+  const [blankAnswers, setBlankAnswers] = useState(() => {
+    const b = {};
+    tasks.forEach((t) => { b[t.id] = parseDraft(t.draftAnswer).blanks; });
+    return b;
+  });
   const [loadingId, setLoadingId] = useState(null);
+  const [savedId, setSavedId] = useState(null);
+  const draftTimers = useRef({});
+  const queueDraftSave = (taskId, nextDrafts, nextBlanks) => {
+    clearTimeout(draftTimers.current[taskId]);
+    draftTimers.current[taskId] = setTimeout(() => {
+      db.saveIntensiveDraft(taskId, JSON.stringify({ extra: nextDrafts[taskId] || "", blanks: nextBlanks[taskId] || [] })).then(() => {
+        setSavedId(taskId);
+        setTimeout(() => setSavedId((id) => (id === taskId ? null : id)), 1500);
+      }).catch(() => {});
+    }, 900);
+  };
   const setBlank = (taskId, idx, val) => setBlankAnswers((prev) => {
     const arr = [...(prev[taskId] || [])];
     arr[idx] = val;
-    return { ...prev, [taskId]: arr };
+    const next = { ...prev, [taskId]: arr };
+    queueDraftSave(taskId, drafts, next);
+    return next;
+  });
+  const setDraftText = (taskId, val) => setDrafts((prev) => {
+    const next = { ...prev, [taskId]: val };
+    queueDraftSave(taskId, next, blankAnswers);
+    return next;
   });
   const submit = async (taskId) => {
     const t = tasks.find((x) => x.id === taskId);
@@ -1737,10 +1812,10 @@ function StudentIntensive({ data, refresh, student }) {
     const hasContent = blanks > 0 ? ((blankAnswers[taskId] || []).some((v) => (v || "").trim()) || extra) : extra;
     if (!hasContent) return;
     setLoadingId(taskId);
-    try { const feedback = await getAIFeedback({ instructions: t.instructions, submissionText: text, level: student.level }); await db.submitIntensiveTask(taskId, text, feedback); refresh(); } catch (e) {}
+    try { const feedback = await getAIFeedback({ instructions: t.instructions, submissionText: text, level: student.level }); await db.submitIntensiveTask(taskId, text, feedback); await db.saveIntensiveDraft(taskId, null); refresh(); } catch (e) {}
     setLoadingId(null);
   };
-  const markDone = async (taskId) => { await db.markIntensiveDone(taskId); refresh(); };
+  const markDone = async (taskId) => { await db.markIntensiveDone(taskId); await db.saveIntensiveDraft(taskId, null); refresh(); };
   return (
     <div>
       <SectionTitle sub={cohort ? `You're enrolled in ${cohort.name}.` : "Everything from the intensive course, plus your own tasks."}>Intensive classroom</SectionTitle>
@@ -1762,10 +1837,12 @@ function StudentIntensive({ data, refresh, student }) {
                         <BlankWorksheet text={t.instructions} values={blankAnswers[t.id] || []} onChange={(idx, val) => setBlank(t.id, idx, val)} />
                       </div>
                     )}
-                    <Textarea className="mt-2" value={drafts[t.id] ?? ""} onChange={(e) => setDrafts({ ...drafts, [t.id]: e.target.value })} placeholder={blanks > 0 ? "Anything else to answer — translations, open questions, etc." : "Write your answer, or leave blank and just mark as done"} />
-                    <div className="mt-2 flex gap-2">
+                    {blanks > 0 && <div className="text-[11px] mt-3 mb-1" style={{ color: MUTED }}>Anything else to add? (optional)</div>}
+                    <Textarea className="mt-2" value={drafts[t.id] ?? ""} onChange={(e) => setDraftText(t.id, e.target.value)} placeholder={blanks > 0 ? "Translations, open questions, etc." : "Write your answer, or leave blank and just mark as done"} />
+                    <div className="mt-2 flex items-center gap-2">
                       <Btn onClick={() => submit(t.id)} disabled={loadingId === t.id}>{loadingId === t.id ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}Submit for AI feedback</Btn>
                       <Btn variant="ghost" onClick={() => markDone(t.id)}><CheckCircle2 size={14} />Mark done</Btn>
+                      {savedId === t.id && <span className="text-xs flex items-center gap-1" style={{ color: MUTED }}><CheckCircle2 size={12} />Draft saved</span>}
                     </div>
                   </>
                 )}
@@ -1781,15 +1858,42 @@ function StudentIntensive({ data, refresh, student }) {
 
 function StudentCourses({ data, refresh, student }) {
   const [selected, setSelected] = useState(data.prerecordedCourses[0]?.id || "");
-  const [drafts, setDrafts] = useState({});
-  const [blankAnswers, setBlankAnswers] = useState({});
+  const myDrafts = data.courseDrafts?.[student.id] || {};
+  const [drafts, setDrafts] = useState(() => {
+    const d = {};
+    Object.entries(myDrafts).forEach(([taskId, raw]) => { d[taskId] = parseDraft(raw).extra; });
+    return d;
+  });
+  const [blankAnswers, setBlankAnswers] = useState(() => {
+    const b = {};
+    Object.entries(myDrafts).forEach(([taskId, raw]) => { b[taskId] = parseDraft(raw).blanks; });
+    return b;
+  });
   const [loadingId, setLoadingId] = useState(null);
+  const [savedId, setSavedId] = useState(null);
+  const draftTimers = useRef({});
   const course = data.prerecordedCourses.find((c) => c.id === selected);
   const mySubs = course?.studentSubmissions?.[student.id] || {};
+  const queueDraftSave = (taskId, nextDrafts, nextBlanks) => {
+    clearTimeout(draftTimers.current[taskId]);
+    draftTimers.current[taskId] = setTimeout(() => {
+      db.saveCourseDraft(taskId, student.id, JSON.stringify({ extra: nextDrafts[taskId] || "", blanks: nextBlanks[taskId] || [] })).then(() => {
+        setSavedId(taskId);
+        setTimeout(() => setSavedId((id) => (id === taskId ? null : id)), 1500);
+      }).catch(() => {});
+    }, 900);
+  };
   const setBlank = (taskId, idx, val) => setBlankAnswers((prev) => {
     const arr = [...(prev[taskId] || [])];
     arr[idx] = val;
-    return { ...prev, [taskId]: arr };
+    const next = { ...prev, [taskId]: arr };
+    queueDraftSave(taskId, drafts, next);
+    return next;
+  });
+  const setDraftText = (taskId, val) => setDrafts((prev) => {
+    const next = { ...prev, [taskId]: val };
+    queueDraftSave(taskId, next, blankAnswers);
+    return next;
   });
   const submit = async (taskId) => {
     if (!course) return;
@@ -1831,8 +1935,12 @@ function StudentCourses({ data, refresh, student }) {
                                   <BlankWorksheet text={t.instructions} values={blankAnswers[t.id] || []} onChange={(idx, val) => setBlank(t.id, idx, val)} />
                                 </div>
                               )}
-                              <Textarea className="mt-2" value={drafts[t.id] ?? ""} onChange={(e) => setDrafts({ ...drafts, [t.id]: e.target.value })} placeholder={blanks > 0 ? "Anything else to answer — translations, open questions, etc." : "Your answer..."} />
-                              <div className="mt-2"><Btn onClick={() => submit(t.id)} disabled={loadingId === t.id}>{loadingId === t.id ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}Submit for AI feedback</Btn></div>
+                              {blanks > 0 && <div className="text-[11px] mt-3 mb-1" style={{ color: MUTED }}>Anything else to add? (optional)</div>}
+                              <Textarea className="mt-2" value={drafts[t.id] ?? ""} onChange={(e) => setDraftText(t.id, e.target.value)} placeholder={blanks > 0 ? "Translations, open questions, etc." : "Your answer..."} />
+                              <div className="mt-2 flex items-center gap-2">
+                                <Btn onClick={() => submit(t.id)} disabled={loadingId === t.id}>{loadingId === t.id ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}Submit for AI feedback</Btn>
+                                {savedId === t.id && <span className="text-xs flex items-center gap-1" style={{ color: MUTED }}><CheckCircle2 size={12} />Draft saved</span>}
+                              </div>
                             </>
                           )}
                         </div>
@@ -1909,55 +2017,6 @@ function StudentGrammarGuides({ data }) {
           </Select></div>
           {guide && <Card className="p-6">{guide.content ? <RichDoc text={guide.content} /> : <p className="text-sm" style={{ color: MUTED }}>Nothing posted yet.</p>}</Card>}
         </>
-      )}
-    </div>
-  );
-}
-
-const WATCHLIST_TYPES = ["Movie", "Series", "Podcast", "YouTube channel"];
-
-function StudentWatchlist({ data, refresh, student }) {
-  const [form, setForm] = useState({ title: "", type: "Movie", level: student.level || "A1", favoritePhrase: "" });
-  const mine = data.watchlistEntries.filter((w) => w.studentId === student.id);
-
-  const add = async () => {
-    if (!form.title.trim()) return;
-    await db.addWatchlistEntry(student.id, form);
-    setForm({ title: "", type: form.type, level: form.level, favoritePhrase: "" });
-    refresh();
-  };
-  const remove = async (id) => { await db.removeWatchlistEntry(id); refresh(); };
-
-  return (
-    <div>
-      <SectionTitle sub="Track what you watch or listen to, and save your favourite word or phrase from each one.">My watchlist</SectionTitle>
-      <Card className="p-5 mb-5">
-        <div className="grid md:grid-cols-2 gap-2 mb-2">
-          <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Title (e.g. Coco, Notes in Spanish...)" />
-          <div className="flex gap-2">
-            <Select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
-              {WATCHLIST_TYPES.map((t) => <option key={t}>{t}</option>)}
-            </Select>
-            <Select value={form.level} onChange={(e) => setForm({ ...form, level: e.target.value })} className="w-24 flex-none">
-              {LEVELS.map((l) => <option key={l}>{l}</option>)}
-            </Select>
-          </div>
-        </div>
-        <Input value={form.favoritePhrase} onChange={(e) => setForm({ ...form, favoritePhrase: e.target.value })} placeholder="Favourite word or phrase you picked up (optional)" />
-        <div className="mt-3"><Btn onClick={add}><Plus size={14} />Add to watchlist</Btn></div>
-      </Card>
-      {mine.length === 0 ? <EmptyState text="Nothing tracked yet — add what you're watching or listening to." /> : (
-        <div className="grid gap-2">
-          {mine.map((w) => (
-            <Card key={w.id} className="p-4 flex items-center justify-between gap-3">
-              <div>
-                <div className="text-sm font-medium">{w.title} <span className="text-xs font-normal" style={{ color: MUTED }}>· {w.type} · {w.level}</span></div>
-                {w.favoritePhrase && <div className="text-xs italic mt-1" style={{ color: MUTED }}>"{w.favoritePhrase}"</div>}
-              </div>
-              <button onClick={() => remove(w.id)}><Trash2 size={14} color="#b3432b" /></button>
-            </Card>
-          ))}
-        </div>
       )}
     </div>
   );

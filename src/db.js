@@ -25,7 +25,6 @@ export async function fetchAll() {
     { data: flashcardAssignments },
     { data: grammarGuides },
     { data: teacherInvites },
-    { data: watchlistEntries },
   ] = await Promise.all([
     supabase.from("students").select("*"),
     supabase.from("groups").select("*"),
@@ -45,7 +44,6 @@ export async function fetchAll() {
     supabase.from("flashcard_assignments").select("*"),
     supabase.from("grammar_guides").select("*").order("position"),
     supabase.from("teacher_invites").select("*").order("created_at", { ascending: false }),
-    supabase.from("watchlist_entries").select("*").order("created_at", { ascending: false }),
   ]);
 
   const curriculum = { A1: [], A2: [], B1: [], B2: [] };
@@ -72,6 +70,7 @@ export async function fetchAll() {
       submissionText: h.submission_text || "",
       aiFeedback: h.ai_feedback || "",
       status: h.status,
+      draftAnswer: h.draft_answer || "",
     })
   );
 
@@ -85,6 +84,7 @@ export async function fetchAll() {
       status: t.status,
       submissionText: t.submission_text || "",
       aiFeedback: t.ai_feedback || "",
+      draftAnswer: t.draft_answer || "",
     });
   });
 
@@ -107,6 +107,7 @@ export async function fetchAll() {
     const studentSubmissions = {};
     (courseSubs || []).forEach((s) => {
       if (!tasks.find((t) => t.id === s.task_id)) return;
+      if (s.status !== "checked") return; // draft-only rows aren't a finished submission
       (studentSubmissions[s.student_id] ??= {})[s.task_id] = {
         submissionText: s.submission_text,
         aiFeedback: s.ai_feedback,
@@ -114,6 +115,11 @@ export async function fetchAll() {
       };
     });
     return { id: c.id, title: c.title, theoryDoc: c.theory_doc || "", tasks, studentSubmissions };
+  });
+
+  const courseDrafts = {};
+  (courseSubs || []).forEach((s) => {
+    if (s.draft_answer) (courseDrafts[s.student_id] ??= {})[s.task_id] = s.draft_answer;
   });
 
   const studentProfiles = {};
@@ -179,9 +185,9 @@ export async function fetchAll() {
     personalDocs,
     intensiveCourses,
     prerecordedCourses,
+    courseDrafts,
     studentProfiles,
     grammarGuides: (grammarGuides || []).map((g) => ({ id: g.id, title: g.title, content: g.content || "" })),
-    watchlistEntries: (watchlistEntries || []).map((w) => ({ id: w.id, studentId: w.student_id, title: w.title, type: w.type, level: w.level, favoritePhrase: w.favorite_phrase || "" })),
     teacherInvites: (teacherInvites || []).map((t) => ({ code: t.code, used: t.used, createdAt: t.created_at })),
   };
 }
@@ -311,12 +317,6 @@ export async function renameGrammarGuide(id, title) {
 export async function removeGrammarGuide(id) {
   await supabase.from("grammar_guides").delete().eq("id", id);
 }
-export async function addWatchlistEntry(studentId, { title, type, level, favoritePhrase }) {
-  await supabase.from("watchlist_entries").insert({ student_id: studentId, title, type, level, favorite_phrase: favoritePhrase });
-}
-export async function removeWatchlistEntry(id) {
-  await supabase.from("watchlist_entries").delete().eq("id", id);
-}
 export async function removeFlashcard(id) {
   await supabase.from("flashcards").delete().eq("id", id);
 }
@@ -406,8 +406,8 @@ export async function submitCourseTask(taskId, studentId, submissionText, aiFeed
 
 export async function saveStudentProfile(studentId, fields) {
   const { email, whatsapp, ...profileFields } = fields;
-  await supabase.from("students").update({ email: email || null, whatsapp: whatsapp || null }).eq("id", studentId);
-  await supabase.from("student_profiles").upsert(
+  const { error: e1 } = await supabase.from("students").update({ email: email || null, whatsapp: whatsapp || null }).eq("id", studentId);
+  const { error: e2 } = await supabase.from("student_profiles").upsert(
     {
       student_id: studentId,
       native_language: profileFields.nativeLanguage || null,
@@ -422,6 +422,26 @@ export async function saveStudentProfile(studentId, fields) {
       completed_at: new Date().toISOString(),
     },
     { onConflict: "student_id" }
+  );
+  // Surface any failure instead of silently pretending it saved — this is
+  // exactly the kind of bug that made profile answers look "lost".
+  if (e1 || e2) throw e1 || e2;
+}
+
+/* ---------------------------------------------------------------- */
+/* Homework / task drafts — autosaved as students type, so in-progress */
+/* answers survive a logout or a closed tab before final submission.  */
+/* ---------------------------------------------------------------- */
+export async function saveHomeworkDraft(id, draftAnswer) {
+  await supabase.from("homework").update({ draft_answer: draftAnswer }).eq("id", id);
+}
+export async function saveIntensiveDraft(id, draftAnswer) {
+  await supabase.from("intensive_tasks").update({ draft_answer: draftAnswer }).eq("id", id);
+}
+export async function saveCourseDraft(taskId, studentId, draftAnswer) {
+  await supabase.from("course_submissions").upsert(
+    { task_id: taskId, student_id: studentId, draft_answer: draftAnswer, status: "draft" },
+    { onConflict: "task_id,student_id" }
   );
 }
 
