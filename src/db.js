@@ -364,6 +364,9 @@ export async function assignHomework(studentId, title, instructions) {
 export async function updateHomeworkInstructions(id, instructions) {
   await supabase.from("homework").update({ instructions }).eq("id", id);
 }
+export async function deleteHomework(id) {
+  await supabase.from("homework").delete().eq("id", id);
+}
 export async function submitHomework(id, submissionText, aiFeedback) {
   await supabase
     .from("homework")
@@ -376,6 +379,12 @@ export async function saveIntensiveDoc(groupId, content) {
 }
 export async function addIntensiveTask(studentId, title, instructions) {
   await supabase.from("intensive_tasks").insert({ student_id: studentId, title, instructions });
+}
+export async function updateIntensiveTaskInstructions(id, title, instructions) {
+  await supabase.from("intensive_tasks").update({ title, instructions }).eq("id", id);
+}
+export async function deleteIntensiveTask(id) {
+  await supabase.from("intensive_tasks").delete().eq("id", id);
 }
 export async function submitIntensiveTask(id, submissionText, aiFeedback) {
   await supabase

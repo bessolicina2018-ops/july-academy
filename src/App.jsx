@@ -805,6 +805,7 @@ function TeacherDocs({ data, refresh }) {
   const [editHwDraft, setEditHwDraft] = useState("");
   const startEditHw = (h) => { setEditingHwId(h.id); setEditHwDraft(h.instructions || ""); };
   const saveHwEdit = async () => { await db.updateHomeworkInstructions(editingHwId, editHwDraft); setEditingHwId(null); refresh(); };
+  const removeHw = async (id) => { if (!window.confirm("Delete this homework? This can't be undone.")) return; await db.deleteHomework(id); refresh(); };
 
   const recentSubmissions = Object.entries(data.personalDocs)
     .flatMap(([studentId, doc]) => (doc.homework || []).filter((h) => h.status === "checked").map((h) => ({ ...h, studentId })))
@@ -883,7 +884,10 @@ function TeacherDocs({ data, refresh }) {
                     ) : (
                       <>
                         <p className="text-xs mt-1 whitespace-pre-wrap" style={{ color: MUTED }}>{h.instructions}</p>
-                        {h.status !== "checked" && <button onClick={() => startEditHw(h)} className="text-xs underline mt-1" style={{ color: GREEN }}>Edit instructions</button>}
+                        <div className="mt-1.5 flex gap-3">
+                          {h.status !== "checked" && <button onClick={() => startEditHw(h)} className="text-xs underline" style={{ color: GREEN }}>Edit instructions</button>}
+                          <button onClick={() => removeHw(h.id)} className="text-xs underline" style={{ color: "#b3432b" }}>Delete</button>
+                        </div>
                       </>
                     )}
                     {h.submissionText && <p className="text-xs mt-2 italic whitespace-pre-wrap" style={{ color: INK }}>"{h.submissionText}"</p>}
@@ -1204,11 +1208,16 @@ function TeacherIntensive({ data, refresh }) {
   const [showTask, setShowTask] = useState(false);
   const [taskForm, setTaskForm] = useState({ title: "", instructions: "" });
   const [docDraft, setDocDraft] = useState(cohort?.generalDoc || "");
+  const [editingTaskId, setEditingTaskId] = useState(null);
+  const [editTaskDraft, setEditTaskDraft] = useState({ title: "", instructions: "" });
 
   useEffect(() => { setDocDraft(cohort?.generalDoc || ""); setSelected(enrolled[0]?.id || ""); }, [cohortId]); // eslint-disable-line
 
   const saveDoc = async () => { if (!cohortId) return; await db.saveIntensiveDoc(cohortId, docDraft); refresh(); };
   const addTask = async () => { if (!taskForm.title.trim() || !selected) return; await db.addIntensiveTask(selected, taskForm.title, taskForm.instructions); setTaskForm({ title: "", instructions: "" }); setShowTask(false); refresh(); };
+  const startEditTask = (t) => { setEditingTaskId(t.id); setEditTaskDraft({ title: t.title, instructions: t.instructions || "" }); };
+  const saveTaskEdit = async () => { await db.updateIntensiveTaskInstructions(editingTaskId, editTaskDraft.title, editTaskDraft.instructions); setEditingTaskId(null); refresh(); };
+  const removeTask = async (id) => { if (!window.confirm("Delete this task? This can't be undone.")) return; await db.deleteIntensiveTask(id); refresh(); };
   const studentTasks = cohort?.students[selected]?.tasks || [];
 
   return (
@@ -1238,8 +1247,32 @@ function TeacherIntensive({ data, refresh }) {
                 <div className="space-y-3">
                   {studentTasks.map((t) => (
                     <div key={t.id} className="rounded-lg p-4" style={{ backgroundColor: CARD_BEIGE }}>
-                      <div className="flex justify-between"><span className="font-medium text-sm">{t.title}</span><span className="text-[10px] px-2 py-0.5 rounded-full" style={{ backgroundColor: t.status === "checked" ? "#dcefdc" : "white" }}>{t.status}</span></div>
-                      <p className="text-xs mt-1 whitespace-pre-wrap" style={{ color: MUTED }}>{t.instructions}</p>
+                      <div className="flex justify-between items-start">
+                        {editingTaskId === t.id ? (
+                          <Input className="max-w-xs" value={editTaskDraft.title} onChange={(e) => setEditTaskDraft((f) => ({ ...f, title: e.target.value }))} />
+                        ) : (
+                          <span className="font-medium text-sm">{t.title}</span>
+                        )}
+                        <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ backgroundColor: t.status === "checked" ? "#dcefdc" : "white" }}>{t.status}</span>
+                      </div>
+                      {editingTaskId === t.id ? (
+                        <div className="mt-2">
+                          <Textarea value={editTaskDraft.instructions} onChange={(e) => setEditTaskDraft((f) => ({ ...f, instructions: e.target.value }))} style={{ minHeight: 160 }} />
+                          <div className="mt-1.5"><Btn variant="ghost" onClick={() => setEditTaskDraft((f) => ({ ...f, instructions: addAnswerLinesAfterQuestions(f.instructions) }))}><Plus size={13} />Add an answer box after every question</Btn></div>
+                          <div className="mt-2 flex gap-2">
+                            <Btn onClick={saveTaskEdit}>Save</Btn>
+                            <Btn variant="ghost" onClick={() => setEditingTaskId(null)}>Cancel</Btn>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <p className="text-xs mt-1 whitespace-pre-wrap" style={{ color: MUTED }}>{t.instructions}</p>
+                          <div className="mt-1.5 flex gap-3">
+                            {t.status !== "checked" && <button onClick={() => startEditTask(t)} className="text-xs underline" style={{ color: GREEN }}>Edit</button>}
+                            <button onClick={() => removeTask(t.id)} className="text-xs underline" style={{ color: "#b3432b" }}>Delete</button>
+                          </div>
+                        </>
+                      )}
                       {t.submissionText && <p className="text-xs mt-2 italic whitespace-pre-wrap">"{t.submissionText}"</p>}
                       {t.aiFeedback && <Feedback text={t.aiFeedback} />}
                     </div>
