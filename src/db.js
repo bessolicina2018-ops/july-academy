@@ -442,16 +442,19 @@ export async function saveStudentProfile(studentId, fields) {
 /* answers survive a logout or a closed tab before final submission.  */
 /* ---------------------------------------------------------------- */
 export async function saveHomeworkDraft(id, draftAnswer) {
-  await supabase.from("homework").update({ draft_answer: draftAnswer }).eq("id", id);
+  const { error } = await supabase.from("homework").update({ draft_answer: draftAnswer }).eq("id", id);
+  if (error) throw error;
 }
 export async function saveIntensiveDraft(id, draftAnswer) {
-  await supabase.from("intensive_tasks").update({ draft_answer: draftAnswer }).eq("id", id);
+  const { error } = await supabase.from("intensive_tasks").update({ draft_answer: draftAnswer }).eq("id", id);
+  if (error) throw error;
 }
 export async function saveCourseDraft(taskId, studentId, draftAnswer) {
-  await supabase.from("course_submissions").upsert(
+  const { error } = await supabase.from("course_submissions").upsert(
     { task_id: taskId, student_id: studentId, draft_answer: draftAnswer, status: "draft" },
     { onConflict: "task_id,student_id" }
   );
+  if (error) throw error;
 }
 
 export async function uploadClassImage(file) {

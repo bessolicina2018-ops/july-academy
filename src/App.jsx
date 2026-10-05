@@ -1607,6 +1607,34 @@ function StudentTimetable({ data, refresh, student }) {
   );
 }
 
+function useDraftSaver(saveFn) {
+  const timers = useRef({});
+  const pending = useRef({});
+  const [savedId, setSavedId] = useState(null);
+  const [errId, setErrId] = useState(null);
+  const run = async (id) => {
+    const payload = pending.current[id];
+    if (payload === undefined) return;
+    delete pending.current[id];
+    try {
+      await saveFn(id, payload);
+      setErrId(null); setSavedId(id);
+      setTimeout(() => setSavedId((x) => (x === id ? null : x)), 2000);
+    } catch (e) { setErrId(id); }
+  };
+  const queue = (id, payload) => {
+    pending.current[id] = payload;
+    clearTimeout(timers.current[id]);
+    timers.current[id] = setTimeout(() => run(id), 600);
+  };
+  useEffect(() => {
+    const flush = () => Object.keys(pending.current).forEach(run);
+    window.addEventListener("pagehide", flush);
+    return () => { window.removeEventListener("pagehide", flush); flush(); };
+  }, []); // eslint-disable-line
+  return { queue, savedId, errId };
+}
+
 function parseDraft(raw) {
   if (!raw) return { extra: "", blanks: [] };
   try {
@@ -1631,17 +1659,8 @@ function StudentDocs({ data, refresh, student }) {
   });
   const [loadingId, setLoadingId] = useState(null);
   const [errId, setErrId] = useState(null);
-  const [savedId, setSavedId] = useState(null);
-  const draftTimers = useRef({});
-  const queueDraftSave = (hwId, nextDrafts, nextBlanks) => {
-    clearTimeout(draftTimers.current[hwId]);
-    draftTimers.current[hwId] = setTimeout(() => {
-      db.saveHomeworkDraft(hwId, JSON.stringify({ extra: nextDrafts[hwId] || "", blanks: nextBlanks[hwId] || [] })).then(() => {
-        setSavedId(hwId);
-        setTimeout(() => setSavedId((id) => (id === hwId ? null : id)), 1500);
-      }).catch(() => {});
-    }, 900);
-  };
+  const { queue: queueRaw, savedId, errId: draftErrId } = useDraftSaver((id, p) => db.saveHomeworkDraft(id, p));
+  const queueDraftSave = (hwId, nextDrafts, nextBlanks) => queueRaw(hwId, JSON.stringify({ extra: nextDrafts[hwId] || "", blanks: nextBlanks[hwId] || [] }));
   const setBlank = (hwId, idx, val) => setBlankAnswers((prev) => {
     const arr = [...(prev[hwId] || [])];
     arr[idx] = val;
@@ -1703,6 +1722,7 @@ function StudentDocs({ data, refresh, student }) {
                       <Btn onClick={() => submit(h.id)} disabled={loadingId === h.id}>{loadingId === h.id ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} Submit for AI feedback</Btn>
                       {errId === h.id && <span className="text-xs flex items-center gap-1" style={{ color: "#b3432b" }}><AlertCircle size={13} />Couldn't get feedback, try again.</span>}
                       {savedId === h.id && <span className="text-xs flex items-center gap-1" style={{ color: MUTED }}><CheckCircle2 size={12} />Draft saved</span>}
+                      {draftErrId === h.id && <span className="text-xs flex items-center gap-1" style={{ color: "#b3432b" }}><AlertCircle size={13} />Draft NOT saved — copy your answer somewhere safe and tell your teacher.</span>}
                     </div>
                   </>
                 )}
@@ -1813,17 +1833,8 @@ function StudentIntensive({ data, refresh, student }) {
     return b;
   });
   const [loadingId, setLoadingId] = useState(null);
-  const [savedId, setSavedId] = useState(null);
-  const draftTimers = useRef({});
-  const queueDraftSave = (taskId, nextDrafts, nextBlanks) => {
-    clearTimeout(draftTimers.current[taskId]);
-    draftTimers.current[taskId] = setTimeout(() => {
-      db.saveIntensiveDraft(taskId, JSON.stringify({ extra: nextDrafts[taskId] || "", blanks: nextBlanks[taskId] || [] })).then(() => {
-        setSavedId(taskId);
-        setTimeout(() => setSavedId((id) => (id === taskId ? null : id)), 1500);
-      }).catch(() => {});
-    }, 900);
-  };
+  const { queue: queueRaw, savedId, errId: draftErrId } = useDraftSaver((id, p) => db.saveIntensiveDraft(id, p));
+  const queueDraftSave = (taskId, nextDrafts, nextBlanks) => queueRaw(taskId, JSON.stringify({ extra: nextDrafts[taskId] || "", blanks: nextBlanks[taskId] || [] }));
   const setBlank = (taskId, idx, val) => setBlankAnswers((prev) => {
     const arr = [...(prev[taskId] || [])];
     arr[idx] = val;
@@ -1876,6 +1887,7 @@ function StudentIntensive({ data, refresh, student }) {
                       <Btn onClick={() => submit(t.id)} disabled={loadingId === t.id}>{loadingId === t.id ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}Submit for AI feedback</Btn>
                       <Btn variant="ghost" onClick={() => markDone(t.id)}><CheckCircle2 size={14} />Mark done</Btn>
                       {savedId === t.id && <span className="text-xs flex items-center gap-1" style={{ color: MUTED }}><CheckCircle2 size={12} />Draft saved</span>}
+                {draftErrId === t.id && <span className="text-xs flex items-center gap-1" style={{ color: "#b3432b" }}><AlertCircle size={13} />Draft NOT saved — tell your teacher.</span>}
                     </div>
                   </>
                 )}
@@ -1903,19 +1915,10 @@ function StudentCourses({ data, refresh, student }) {
     return b;
   });
   const [loadingId, setLoadingId] = useState(null);
-  const [savedId, setSavedId] = useState(null);
-  const draftTimers = useRef({});
+  const { queue: queueRaw, savedId, errId: draftErrId } = useDraftSaver((id, p) => db.saveCourseDraft(id, student.id, p));
   const course = data.prerecordedCourses.find((c) => c.id === selected);
   const mySubs = course?.studentSubmissions?.[student.id] || {};
-  const queueDraftSave = (taskId, nextDrafts, nextBlanks) => {
-    clearTimeout(draftTimers.current[taskId]);
-    draftTimers.current[taskId] = setTimeout(() => {
-      db.saveCourseDraft(taskId, student.id, JSON.stringify({ extra: nextDrafts[taskId] || "", blanks: nextBlanks[taskId] || [] })).then(() => {
-        setSavedId(taskId);
-        setTimeout(() => setSavedId((id) => (id === taskId ? null : id)), 1500);
-      }).catch(() => {});
-    }, 900);
-  };
+  const queueDraftSave = (taskId, nextDrafts, nextBlanks) => queueRaw(taskId, JSON.stringify({ extra: nextDrafts[taskId] || "", blanks: nextBlanks[taskId] || [] }));
   const setBlank = (taskId, idx, val) => setBlankAnswers((prev) => {
     const arr = [...(prev[taskId] || [])];
     arr[idx] = val;
@@ -1973,6 +1976,7 @@ function StudentCourses({ data, refresh, student }) {
                               <div className="mt-2 flex items-center gap-2">
                                 <Btn onClick={() => submit(t.id)} disabled={loadingId === t.id}>{loadingId === t.id ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}Submit for AI feedback</Btn>
                                 {savedId === t.id && <span className="text-xs flex items-center gap-1" style={{ color: MUTED }}><CheckCircle2 size={12} />Draft saved</span>}
+                {draftErrId === t.id && <span className="text-xs flex items-center gap-1" style={{ color: "#b3432b" }}><AlertCircle size={13} />Draft NOT saved — tell your teacher.</span>}
                               </div>
                             </>
                           )}
