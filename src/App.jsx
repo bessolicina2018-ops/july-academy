@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   Calendar, FileText, Headphones, Layers, GraduationCap, Video, CheckCircle2,
   Circle, Plus, X, Send, Loader2, Users, LogOut, ChevronRight, Sparkles,
-  Trash2, Info, ChevronLeft, AlertCircle, BookOpen, Shield,
+  Trash2, Info, ChevronLeft, AlertCircle, BookOpen, Shield, List, Repeat, PlayCircle,
 } from "lucide-react";
 import { supabase } from "./supabaseClient";
 import * as db from "./db";
@@ -550,6 +550,8 @@ function TeacherApp({ data, refresh, onLogout, isAdmin }) {
     { key: "docs", label: "Personal documents", icon: FileText },
     { key: "resources", label: "Resources", icon: Headphones },
     { key: "flashcards", label: "Flashcards", icon: Layers },
+    { key: "vocab", label: "Vocabulary", icon: List },
+    { key: "verbs", label: "Verbs", icon: Repeat },
     { key: "curriculum", label: "Curriculum", icon: CheckCircle2 },
     { key: "intensive", label: "Intensive course", icon: GraduationCap },
     { key: "prerecorded", label: "Pre-recorded courses", icon: Video },
@@ -563,6 +565,8 @@ function TeacherApp({ data, refresh, onLogout, isAdmin }) {
       {active === "docs" && <TeacherDocs data={data} refresh={refresh} />}
       {active === "resources" && <TeacherResources data={data} refresh={refresh} />}
       {active === "flashcards" && <TeacherFlashcards data={data} refresh={refresh} />}
+      {active === "vocab" && <TeacherVocab kind="word" data={data} refresh={refresh} />}
+      {active === "verbs" && <TeacherVocab kind="verb" data={data} refresh={refresh} />}
       {active === "curriculum" && <TeacherCurriculum data={data} refresh={refresh} />}
       {active === "intensive" && <TeacherIntensive data={data} refresh={refresh} />}
       {active === "prerecorded" && <TeacherPrerecorded data={data} refresh={refresh} />}
@@ -919,20 +923,27 @@ function TeacherDocs({ data, refresh }) {
 
 function TeacherResources({ data, refresh }) {
   const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ type: "video", title: "", url: "", description: "" });
+  const [form, setForm] = useState({ type: "video", title: "", url: "", description: "", level: "" });
   const [expanded, setExpanded] = useState(null);
-  const add = async () => { if (!form.title.trim()) return; await db.addResource(form); setForm({ type: "video", title: "", url: "", description: "" }); setShowAdd(false); refresh(); };
+  const [levelFilter, setLevelFilter] = useState("All");
+  const add = async () => { if (!form.title.trim()) return; await db.addResource({ ...form, level: form.level || null }); setForm({ type: "video", title: "", url: "", description: "", level: "" }); setShowAdd(false); refresh(); };
   const remove = async (id) => { await db.removeResource(id); refresh(); };
   const icons = { video: Video, podcast: Headphones, info: Info };
+  const filtered = levelFilter === "All" ? data.resources : data.resources.filter((r) => !r.level || r.level === levelFilter);
   return (
     <div>
       <div className="flex items-center justify-between">
         <SectionTitle sub="Videos, podcasts and useful info for your students to browse anytime.">Resources</SectionTitle>
         <Btn onClick={() => setShowAdd(true)}><Plus size={14} />Add resource</Btn>
       </div>
-      {data.resources.length === 0 ? <EmptyState text="No resources yet." /> : (
+      <div className="flex flex-wrap gap-2 mb-4">
+        {["All", "A1", "A2", "B1", "B2"].map((lv) => (
+          <button key={lv} onClick={() => setLevelFilter(lv)} className="text-xs px-3 py-1.5 rounded-full" style={{ backgroundColor: levelFilter === lv ? GREEN : CARD_BEIGE, color: levelFilter === lv ? "white" : INK }}>{lv}</button>
+        ))}
+      </div>
+      {filtered.length === 0 ? <EmptyState text="No resources at this level yet." /> : (
         <div className="grid gap-2">
-          {data.resources.map((r) => {
+          {filtered.map((r) => {
             const Icon = icons[r.type] || Info;
             const isOpen = expanded === r.id;
             return (
@@ -940,7 +951,7 @@ function TeacherResources({ data, refresh }) {
                 <div className="flex items-center justify-between gap-3">
                   <button onClick={() => setExpanded(isOpen ? null : r.id)} className="flex items-center gap-3 flex-1 text-left">
                     <Icon size={18} color={GREEN} />
-                    <div className="text-sm font-medium">{r.title}</div>
+                    <div className="text-sm font-medium">{r.title}{r.level && <span className="text-xs font-normal ml-2 px-1.5 py-0.5 rounded" style={{ backgroundColor: CARD_BEIGE, color: MUTED }}>{r.level}</span>}</div>
                   </button>
                   <div className="flex items-center gap-2">
                     {r.url && <a href={r.url} target="_blank" rel="noreferrer" className="text-xs underline" style={{ color: GREEN }}>Open link</a>}
@@ -956,7 +967,13 @@ function TeacherResources({ data, refresh }) {
       {showAdd && (
         <Modal title="Add resource" onClose={() => setShowAdd(false)} wide>
           <div className="space-y-3">
-            <Select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}><option value="video">Video</option><option value="podcast">Podcast</option><option value="info">Useful info</option></Select>
+            <div className="flex gap-2">
+              <Select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}><option value="video">Video</option><option value="podcast">Podcast</option><option value="info">Useful info</option></Select>
+              <Select value={form.level} onChange={(e) => setForm({ ...form, level: e.target.value })}>
+                <option value="">General (all levels)</option>
+                {LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
+              </Select>
+            </div>
             <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Title" />
             <Input value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} placeholder="Link (optional)" />
             <RichEditor value={form.description} onChange={(v) => setForm({ ...form, description: v })} placeholder="Description — use the formatting tools for headings, tables, lists..." minHeight={140} />
@@ -1369,6 +1386,162 @@ function TeacherPrerecorded({ data, refresh }) {
   );
 }
 
+/* ---------------- Vocabulary & verbs (list view) ---------------- */
+// Flashcards automatically count as vocabulary/verbs too (no double entry).
+function flashcardsAsVocab(data, kind) {
+  return (data.flashcards || [])
+    .filter((f) => (kind === "verb" ? f.category === "verb" : f.category !== "verb"))
+    .map((f) => ({
+      id: "fc-" + f.id, fromFlashcard: true, kind, word: f.word, translation: f.translation || "",
+      example: kind === "verb" ? "" : f.example || "", conjugation: kind === "verb" ? f.example || "" : "",
+      level: "", groupId: "", targets: f.targets || [],
+    }));
+}
+
+function TeacherVocab({ kind, data, refresh }) {
+  const isVerb = kind === "verb";
+  const label = isVerb ? "Verbs" : "Vocabulary";
+  const blank = { word: "", translation: "", example: "", conjugation: "", level: "", groupId: "" };
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [form, setForm] = useState(blank);
+  const [bulk, setBulk] = useState(false);
+  const [bulkText, setBulkText] = useState("");
+  const [err, setErr] = useState("");
+  const [levelFilter, setLevelFilter] = useState("All");
+  const [groupFilter, setGroupFilter] = useState("");
+  const [q, setQ] = useState("");
+  const groupName = (id) => data.groups.find((g) => g.id === id)?.name || "";
+  const fromCards = flashcardsAsVocab(data, kind)
+    .filter((v) => levelFilter === "All")
+    .filter((v) => !groupFilter || v.targets.some((t) => t.type === "group" && t.id === groupFilter));
+  const items = [...data.vocab.filter((v) => v.kind === kind)
+    .filter((v) => levelFilter === "All" || v.level === levelFilter)
+    .filter((v) => !groupFilter || v.groupId === groupFilter), ...fromCards]
+    .filter((v) => !q.trim() || (v.word + " " + v.translation).toLowerCase().includes(q.trim().toLowerCase()));
+
+  const openNew = () => { setEditingId(null); setForm({ ...blank, level: levelFilter !== "All" ? levelFilter : "", groupId: groupFilter }); setBulk(false); setBulkText(""); setErr(""); setShowForm(true); };
+  const openEdit = (v) => { setEditingId(v.id); setForm({ word: v.word, translation: v.translation, example: v.example, conjugation: v.conjugation, level: v.level, groupId: v.groupId }); setBulk(false); setErr(""); setShowForm(true); };
+  const save = async () => {
+    setErr("");
+    try {
+      if (bulk && !editingId) {
+        const rows = bulkText.split("\n").map((l) => l.trim()).filter(Boolean).map((l) => {
+          const [word, translation, example] = l.split("|").map((x) => (x || "").trim());
+          return { kind, word, translation, example, conjugation: "", level: form.level, groupId: form.groupId };
+        }).filter((r) => r.word);
+        if (rows.length === 0) return;
+        await db.addVocabBulk(rows);
+      } else {
+        if (!form.word.trim()) return;
+        if (editingId) await db.updateVocab(editingId, { ...form, kind }); else await db.addVocab({ ...form, kind });
+      }
+      setShowForm(false); refresh();
+    } catch (e) { setErr("Couldn't save — has the database step been run? (see message from your assistant)"); }
+  };
+  const remove = async (id) => { if (!window.confirm("Delete this entry?")) return; await db.removeVocab(id); refresh(); };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between">
+        <SectionTitle sub={isVerb ? "Verbs with their conjugations. Students see only their own level and group." : "Word lists with translation and an example. Students see only their own level and group."}>{label}</SectionTitle>
+        <Btn onClick={openNew}><Plus size={14} />Add {isVerb ? "verb" : "word"}</Btn>
+      </div>
+      <div className="flex flex-wrap gap-2 mb-4 items-center">
+        {["All", ...LEVELS].map((l) => (
+          <button key={l} onClick={() => setLevelFilter(l)} className="px-3 py-1.5 rounded-full text-sm" style={{ backgroundColor: levelFilter === l ? GREEN : CARD_BEIGE, color: levelFilter === l ? "white" : INK }}>{l}</button>
+        ))}
+        <Select value={groupFilter} onChange={(e) => setGroupFilter(e.target.value)} className="max-w-[200px]"><option value="">All groups</option>{data.groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}</Select>
+        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search..." className="max-w-[180px]" />
+      </div>
+      {items.length === 0 ? <EmptyState text={`No ${label.toLowerCase()} yet for this filter.`} /> : (
+        <div className="space-y-2">
+          {items.map((v) => (
+            <Card key={v.id} className="p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="font-medium" style={{ fontFamily: "Georgia, serif" }}>{v.word} <span className="font-normal text-sm" style={{ color: MUTED }}>— {v.translation}</span></div>
+                  {v.example && <div className="text-xs mt-1 italic whitespace-pre-wrap" style={{ color: MUTED }}>{v.example}</div>}
+                  {v.conjugation && <div className="mt-2 text-sm"><RichDoc text={v.conjugation} /></div>}
+                </div>
+                <div className="flex flex-col items-end gap-1 shrink-0">
+                  <div className="flex gap-1">
+                    {v.fromFlashcard ? <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ backgroundColor: "#eef6ee" }}>Flashcard</span> : <>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ backgroundColor: CARD_BEIGE }}>{v.level || "All levels"}</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ backgroundColor: CARD_BEIGE }}>{v.groupId ? groupName(v.groupId) : "Everyone"}</span></>}
+                  </div>
+                  {v.fromFlashcard ? <div className="text-[10px] mt-1" style={{ color: MUTED }}>From flashcards — edit there</div> : (
+                  <div className="flex gap-3 mt-1">
+                    <button onClick={() => openEdit(v)} className="text-xs underline" style={{ color: GREEN }}>Edit</button>
+                    <button onClick={() => remove(v.id)} className="text-xs underline" style={{ color: "#b3432b" }}>Delete</button>
+                  </div>)}
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+      {showForm && (
+        <Modal title={editingId ? "Edit entry" : `Add ${isVerb ? "verb" : "word"}`} onClose={() => setShowForm(false)} wide>
+          <div className="space-y-3">
+            {!editingId && !isVerb && (
+              <label className="text-xs flex items-center gap-2" style={{ color: MUTED }}><input type="checkbox" checked={bulk} onChange={(e) => setBulk(e.target.checked)} />Add many at once (one per line: word | translation | example)</label>
+            )}
+            {bulk && !editingId ? (
+              <Textarea value={bulkText} onChange={(e) => setBulkText(e.target.value)} style={{ minHeight: 180 }} placeholder={"la casa | house | Mi casa es grande.\nel perro | dog | El perro duerme."} />
+            ) : (
+              <>
+                <Input value={form.word} onChange={(e) => setForm({ ...form, word: e.target.value })} placeholder={isVerb ? "Verb (infinitive), e.g. hablar" : "Word, e.g. la casa"} />
+                <Input value={form.translation} onChange={(e) => setForm({ ...form, translation: e.target.value })} placeholder="Translation" />
+                <Textarea value={form.example} onChange={(e) => setForm({ ...form, example: e.target.value })} placeholder="Example sentence" style={{ minHeight: 60 }} />
+                {isVerb && <RichEditor value={form.conjugation} onChange={(v) => setForm((f) => ({ ...f, conjugation: v }))} placeholder="Conjugation — paste a table from Google Docs/Sheets, or type | yo | hablo | rows" minHeight={140} />}
+              </>
+            )}
+            <div className="grid grid-cols-2 gap-2">
+              <div><label className="text-xs" style={{ color: MUTED }}>Level</label><Select value={form.level} onChange={(e) => setForm({ ...form, level: e.target.value })}><option value="">All levels</option>{LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}</Select></div>
+              <div><label className="text-xs" style={{ color: MUTED }}>Group</label><Select value={form.groupId} onChange={(e) => setForm({ ...form, groupId: e.target.value })}><option value="">Everyone</option>{data.groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}</Select></div>
+            </div>
+            {err && <p className="text-xs" style={{ color: "#b3432b" }}>{err}</p>}
+            <Btn onClick={save} className="w-full justify-center">Save</Btn>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function StudentVocab({ kind, data }) {
+  const isVerb = kind === "verb";
+  const [q, setQ] = useState("");
+  const [open, setOpen] = useState(null);
+  const items = [...data.vocab.filter((v) => v.kind === kind), ...flashcardsAsVocab(data, kind)]
+    .sort((x, y) => x.word.localeCompare(y.word, "es"))
+    .filter((v) => !q.trim() || (v.word + " " + v.translation).toLowerCase().includes(q.trim().toLowerCase()));
+  return (
+    <div>
+      <SectionTitle sub={isVerb ? "Tap a verb to see its conjugation." : "Your word list, with translations and examples."}>{isVerb ? "Verbs" : "Vocabulary"}</SectionTitle>
+      <div className="mb-4 max-w-xs"><Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search..." /></div>
+      {items.length === 0 ? <EmptyState text={`No ${isVerb ? "verbs" : "words"} yet.`} /> : (
+        <div className="space-y-2">
+          {items.map((v) => {
+            const expandable = isVerb && v.conjugation;
+            return (
+              <Card key={v.id} className={"p-4 " + (expandable ? "cursor-pointer" : "")} onClick={expandable ? () => setOpen(open === v.id ? null : v.id) : undefined}>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="font-medium" style={{ fontFamily: "Georgia, serif" }}>{v.word} <span className="font-normal text-sm" style={{ color: MUTED }}>— {v.translation}</span></div>
+                  {expandable && <ChevronRight size={16} color={MUTED} style={{ transform: open === v.id ? "rotate(90deg)" : "none" }} />}
+                </div>
+                {v.example && <div className="text-xs mt-1 italic whitespace-pre-wrap" style={{ color: MUTED }}>{v.example}</div>}
+                {expandable && open === v.id && <div className="mt-3 text-sm" onClick={(e) => e.stopPropagation()}><RichDoc text={v.conjugation} /></div>}
+              </Card>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TeacherGrammarGuides({ data, refresh }) {
   const [selected, setSelected] = useState(data.grammarGuides[0]?.id || "");
   const [showAdd, setShowAdd] = useState(false);
@@ -1436,10 +1609,13 @@ function StudentApp({ data, refresh, student, onLogout }) {
     { key: "docs", label: "My document", icon: FileText },
     { key: "resources", label: "Resources", icon: Headphones },
     { key: "flashcards", label: "Flashcards", icon: Layers },
+    { key: "vocab", label: "Vocabulary", icon: List },
+    { key: "verbs", label: "Verbs", icon: Repeat },
     { key: "progress", label: "My progress", icon: CheckCircle2 },
     ...(student?.intensiveGroupId ? [{ key: "intensive", label: "Intensive classroom", icon: GraduationCap }] : []),
     { key: "courses", label: "My courses", icon: Video },
     { key: "guides", label: "Grammar guides", icon: BookOpen },
+    { key: "watchlist", label: "My watchlist", icon: PlayCircle },
     { key: "profile", label: "My profile", icon: FileText, badge: needsProfile },
   ];
   if (!student) return null;
@@ -1447,12 +1623,15 @@ function StudentApp({ data, refresh, student, onLogout }) {
     <Shell roleLabel={`${student.name} · ${student.level}`} tabs={tabs} active={active} setActive={setActive} onLogout={onLogout}>
       {active === "timetable" && <StudentTimetable data={data} refresh={refresh} student={student} />}
       {active === "docs" && <StudentDocs data={data} refresh={refresh} student={student} />}
-      {active === "resources" && <StudentResources data={data} />}
+      {active === "resources" && <StudentResources data={data} student={student} />}
       {active === "flashcards" && <StudentFlashcards data={data} />}
+      {active === "vocab" && <StudentVocab kind="word" data={data} />}
+      {active === "verbs" && <StudentVocab kind="verb" data={data} />}
       {active === "progress" && <StudentProgress data={data} student={student} />}
       {active === "intensive" && <StudentIntensive data={data} refresh={refresh} student={student} />}
       {active === "courses" && <StudentCourses data={data} refresh={refresh} student={student} />}
       {active === "guides" && <StudentGrammarGuides data={data} />}
+      {active === "watchlist" && <StudentWatchlist data={data} refresh={refresh} student={student} />}
       {active === "profile" && <StudentProfileForm data={data} refresh={refresh} student={student} />}
       {showPrompt && (
         <Modal title="Tell us about yourself" onClose={() => setShowPrompt(false)}>
@@ -1736,15 +1915,22 @@ function StudentDocs({ data, refresh, student }) {
   );
 }
 
-function StudentResources({ data }) {
+function StudentResources({ data, student }) {
   const icons = { video: Video, podcast: Headphones, info: Info };
   const [expanded, setExpanded] = useState(null);
+  const [levelFilter, setLevelFilter] = useState(student?.level && LEVELS.includes(student.level) ? student.level : "All");
+  const filtered = levelFilter === "All" ? data.resources : data.resources.filter((r) => !r.level || r.level === levelFilter);
   return (
     <div>
       <SectionTitle>Resources</SectionTitle>
-      {data.resources.length === 0 ? <EmptyState text="No resources yet." /> : (
+      <div className="flex flex-wrap gap-2 mb-4">
+        {["All", "A1", "A2", "B1", "B2"].map((lv) => (
+          <button key={lv} onClick={() => setLevelFilter(lv)} className="text-xs px-3 py-1.5 rounded-full" style={{ backgroundColor: levelFilter === lv ? GREEN : CARD_BEIGE, color: levelFilter === lv ? "white" : INK }}>{lv}</button>
+        ))}
+      </div>
+      {filtered.length === 0 ? <EmptyState text="No resources at this level yet." /> : (
         <div className="grid gap-2">
-          {data.resources.map((r) => {
+          {filtered.map((r) => {
             const Icon = icons[r.type] || Info;
             const isOpen = expanded === r.id;
             return (
@@ -1752,7 +1938,7 @@ function StudentResources({ data }) {
                 <div className="flex items-center justify-between gap-3">
                   <button onClick={() => setExpanded(isOpen ? null : r.id)} className="flex items-center gap-3 flex-1 text-left">
                     <Icon size={18} color={GREEN} />
-                    <div className="text-sm font-medium">{r.title}</div>
+                    <div className="text-sm font-medium">{r.title}{r.level && <span className="text-xs font-normal ml-2 px-1.5 py-0.5 rounded" style={{ backgroundColor: CARD_BEIGE, color: MUTED }}>{r.level}</span>}</div>
                   </button>
                   {r.url && <a href={r.url} target="_blank" rel="noreferrer" className="text-xs underline" style={{ color: GREEN }}>Open</a>}
                 </div>
@@ -2054,6 +2240,55 @@ function StudentGrammarGuides({ data }) {
           </Select></div>
           {guide && <Card className="p-6">{guide.content ? <RichDoc text={guide.content} /> : <p className="text-sm" style={{ color: MUTED }}>Nothing posted yet.</p>}</Card>}
         </>
+      )}
+    </div>
+  );
+}
+
+const WATCHLIST_TYPES = ["Movie", "Series", "Podcast", "YouTube channel"];
+
+function StudentWatchlist({ data, refresh, student }) {
+  const [form, setForm] = useState({ title: "", type: "Movie", level: student.level || "A1", favoritePhrase: "" });
+  const mine = data.watchlistEntries.filter((w) => w.studentId === student.id);
+
+  const add = async () => {
+    if (!form.title.trim()) return;
+    await db.addWatchlistEntry(student.id, form);
+    setForm({ title: "", type: form.type, level: form.level, favoritePhrase: "" });
+    refresh();
+  };
+  const remove = async (id) => { await db.removeWatchlistEntry(id); refresh(); };
+
+  return (
+    <div>
+      <SectionTitle sub="Track what you watch or listen to, and save your favourite word or phrase from each one.">My watchlist</SectionTitle>
+      <Card className="p-5 mb-5">
+        <div className="grid md:grid-cols-2 gap-2 mb-2">
+          <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Title (e.g. Coco, Notes in Spanish...)" />
+          <div className="flex gap-2">
+            <Select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
+              {WATCHLIST_TYPES.map((t) => <option key={t}>{t}</option>)}
+            </Select>
+            <Select value={form.level} onChange={(e) => setForm({ ...form, level: e.target.value })} className="w-24 flex-none">
+              {LEVELS.map((l) => <option key={l}>{l}</option>)}
+            </Select>
+          </div>
+        </div>
+        <Input value={form.favoritePhrase} onChange={(e) => setForm({ ...form, favoritePhrase: e.target.value })} placeholder="Favourite word or phrase you picked up (optional)" />
+        <div className="mt-3"><Btn onClick={add}><Plus size={14} />Add to watchlist</Btn></div>
+      </Card>
+      {mine.length === 0 ? <EmptyState text="Nothing tracked yet — add what you're watching or listening to." /> : (
+        <div className="grid gap-2">
+          {mine.map((w) => (
+            <Card key={w.id} className="p-4 flex items-center justify-between gap-3">
+              <div>
+                <div className="text-sm font-medium">{w.title} <span className="text-xs font-normal" style={{ color: MUTED }}>· {w.type} · {w.level}</span></div>
+                {w.favoritePhrase && <div className="text-xs italic mt-1" style={{ color: MUTED }}>"{w.favoritePhrase}"</div>}
+              </div>
+              <button onClick={() => remove(w.id)}><Trash2 size={14} color="#b3432b" /></button>
+            </Card>
+          ))}
+        </div>
       )}
     </div>
   );

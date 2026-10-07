@@ -25,6 +25,7 @@ export async function fetchAll() {
     { data: flashcardAssignments },
     { data: grammarGuides },
     { data: teacherInvites },
+    { data: watchlistEntries },
   ] = await Promise.all([
     supabase.from("students").select("*"),
     supabase.from("groups").select("*"),
@@ -44,6 +45,7 @@ export async function fetchAll() {
     supabase.from("flashcard_assignments").select("*"),
     supabase.from("grammar_guides").select("*").order("position"),
     supabase.from("teacher_invites").select("*").order("created_at", { ascending: false }),
+    supabase.from("watchlist_entries").select("*").order("created_at", { ascending: false }),
   ]);
 
   const curriculum = { A1: [], A2: [], B1: [], B2: [] };
@@ -186,8 +188,13 @@ export async function fetchAll() {
     intensiveCourses,
     prerecordedCourses,
     courseDrafts,
+    vocab: (vocabRows || []).map((v) => ({
+      id: v.id, kind: v.kind, word: v.word, translation: v.translation || "", example: v.example || "",
+      conjugation: v.conjugation || "", level: v.level || "", groupId: v.group_id || "",
+    })),
     studentProfiles,
     grammarGuides: (grammarGuides || []).map((g) => ({ id: g.id, title: g.title, content: g.content || "" })),
+    watchlistEntries: (watchlistEntries || []).map((w) => ({ id: w.id, studentId: w.student_id, title: w.title, type: w.type, level: w.level, favoritePhrase: w.favorite_phrase || "" })),
     teacherInvites: (teacherInvites || []).map((t) => ({ code: t.code, used: t.used, createdAt: t.created_at })),
   };
 }
@@ -316,6 +323,12 @@ export async function renameGrammarGuide(id, title) {
 }
 export async function removeGrammarGuide(id) {
   await supabase.from("grammar_guides").delete().eq("id", id);
+}
+export async function addWatchlistEntry(studentId, { title, type, level, favoritePhrase }) {
+  await supabase.from("watchlist_entries").insert({ student_id: studentId, title, type, level, favorite_phrase: favoritePhrase });
+}
+export async function removeWatchlistEntry(id) {
+  await supabase.from("watchlist_entries").delete().eq("id", id);
 }
 export async function removeFlashcard(id) {
   await supabase.from("flashcards").delete().eq("id", id);
@@ -514,4 +527,25 @@ export async function studentLogin(name, code) {
 
 export async function signOut() {
   await supabase.auth.signOut();
+}
+
+/* ---------------- Vocabulary & verbs lists ---------------- */
+const vocabRow = (v) => ({
+  kind: v.kind, word: v.word.trim(), translation: v.translation || null, example: v.example || null,
+  conjugation: v.conjugation || null, level: v.level || null, group_id: v.groupId || null,
+});
+export async function addVocab(v) {
+  const { error } = await supabase.from("vocab_entries").insert(vocabRow(v));
+  if (error) throw error;
+}
+export async function addVocabBulk(rows) {
+  const { error } = await supabase.from("vocab_entries").insert(rows.map(vocabRow));
+  if (error) throw error;
+}
+export async function updateVocab(id, v) {
+  const { error } = await supabase.from("vocab_entries").update(vocabRow(v)).eq("id", id);
+  if (error) throw error;
+}
+export async function removeVocab(id) {
+  await supabase.from("vocab_entries").delete().eq("id", id);
 }
