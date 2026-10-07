@@ -190,6 +190,7 @@ export async function fetchAll() {
     intensiveCourses,
     prerecordedCourses,
     courseDrafts,
+    intensiveTasksByStudent: tasksByStudent,
     vocab: (vocabRows || []).map((v) => ({
       id: v.id, kind: v.kind, word: v.word, translation: v.translation || "", example: v.example || "",
       conjugation: v.conjugation || "", level: v.level || "", groupId: v.group_id || "",

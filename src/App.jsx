@@ -1612,7 +1612,7 @@ function StudentApp({ data, refresh, student, onLogout }) {
     { key: "vocab", label: "Vocabulary", icon: List },
     { key: "verbs", label: "Verbs", icon: Repeat },
     { key: "progress", label: "My progress", icon: CheckCircle2 },
-    ...(student?.intensiveGroupId ? [{ key: "intensive", label: "Intensive classroom", icon: GraduationCap }] : []),
+    ...((student?.intensiveGroupId || (data.intensiveTasksByStudent?.[student?.id] || []).length > 0) ? [{ key: "intensive", label: "Intensive classroom", icon: GraduationCap }] : []),
     { key: "courses", label: "My courses", icon: Video },
     { key: "guides", label: "Grammar guides", icon: BookOpen },
     { key: "watchlist", label: "My watchlist", icon: PlayCircle },
@@ -2007,7 +2007,7 @@ function StudentProgress({ data, student }) {
 
 function StudentIntensive({ data, refresh, student }) {
   const cohort = data.intensiveCourses.find((c) => c.id === student.intensiveGroupId);
-  const tasks = cohort?.students[student.id]?.tasks || [];
+  const tasks = cohort?.students[student.id]?.tasks || data.intensiveTasksByStudent?.[student.id] || [];
   const [drafts, setDrafts] = useState(() => {
     const d = {};
     tasks.forEach((t) => { d[t.id] = parseDraft(t.draftAnswer).extra; });
@@ -2048,7 +2048,7 @@ function StudentIntensive({ data, refresh, student }) {
   const markDone = async (taskId) => { await db.markIntensiveDone(taskId); await db.saveIntensiveDraft(taskId, null); refresh(); };
   return (
     <div>
-      <SectionTitle sub={cohort ? `You're enrolled in ${cohort.name}.` : "Everything from the intensive course, plus your own tasks."}>Intensive classroom</SectionTitle>
+      <SectionTitle sub={cohort ? `You're enrolled in ${cohort.name}.` : "Your tasks and work from the intensive course."}>Intensive classroom</SectionTitle>
       <Card className="p-5 mb-5"><h3 className="font-medium mb-2" style={{ fontFamily: "Georgia, serif" }}>General class document</h3>{cohort?.generalDoc ? <RichDoc text={cohort.generalDoc} /> : <p className="text-sm" style={{ color: MUTED }}>Nothing posted yet.</p>}</Card>
       <Card className="p-5">
         <h3 className="font-medium mb-3" style={{ fontFamily: "Georgia, serif" }}>My tasks</h3>
