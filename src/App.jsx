@@ -228,6 +228,73 @@ function RichDoc({ text, className = "" }) {
   flushList();
   return <div className={"text-sm leading-relaxed " + className} style={{ color: INK }}>{elements}</div>;
 }
+/* ---------------- Collapsible lessons (student view) ---------------- */
+function plainTitle(s) { return (s || "").replace(/^#+\s*/, "").replace(/\*\*/g, "").replace(/!\[[^\]]*\]\([^)]*\)/g, "").trim(); }
+
+function CollapsibleItem({ title, sub, children, defaultOpen = false }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="rounded-lg" style={{ backgroundColor: CARD_BEIGE }}>
+      <button onClick={() => setOpen(!open)} className="w-full flex items-center justify-between gap-3 text-left p-3">
+        <span className="min-w-0">
+          <span className="block text-sm font-medium truncate">{title || "Lesson"}</span>
+          {sub && <span className="block text-xs" style={{ color: MUTED }}>{sub}</span>}
+        </span>
+        <ChevronRight size={16} color={MUTED} style={{ transform: open ? "rotate(90deg)" : "none", flexShrink: 0 }} />
+      </button>
+      {open && <div className="px-3 pb-3 text-sm">{children}</div>}
+    </div>
+  );
+}
+
+function splitLessons(text) {
+  const lines = (text || "").split("\n");
+  const level = lines.some((l) => /^# \S/.test(l)) ? 1 : lines.some((l) => /^## \S/.test(l)) ? 2 : 0;
+  const sections = [];
+  let intro = [];
+  if (level) {
+    const re = new RegExp("^#{" + level + "} \\S");
+    let cur = null;
+    lines.forEach((l) => {
+      if (re.test(l)) { cur = { title: plainTitle(l), body: [] }; sections.push(cur); }
+      else if (cur) cur.body.push(l);
+      else intro.push(l);
+    });
+  } else if (lines.some((l) => /^---+\s*$/.test(l.trim()))) {
+    let chunk = [];
+    const push = () => { const first = chunk.find((l) => l.trim()); if (first) sections.push({ title: plainTitle(first).slice(0, 70), body: chunk }); chunk = []; };
+    lines.forEach((l) => { if (/^---+\s*$/.test(l.trim())) push(); else chunk.push(l); });
+    push();
+  }
+  return { intro: intro.join("\n").trim(), sections: sections.map((s) => ({ title: s.title, body: s.body.join("\n").trim() })) };
+}
+
+function CollapsibleDoc({ text }) {
+  const { intro, sections } = splitLessons(text);
+  const [rev, setRev] = useState(false);
+  const [allOpen, setAllOpen] = useState(0); // bump to re-key and reset open state
+  const [openAll, setOpenAll] = useState(false);
+  if (sections.length < 2) return <RichDoc text={text} />;
+  const list = rev ? [...sections].reverse() : sections;
+  return (
+    <div>
+      <div className="flex gap-3 mb-2 text-xs">
+        <button className="underline" style={{ color: GREEN }} onClick={() => { setOpenAll(true); setAllOpen((n) => n + 1); }}>Open all</button>
+        <button className="underline" style={{ color: GREEN }} onClick={() => { setOpenAll(false); setAllOpen((n) => n + 1); }}>Close all</button>
+        <button className="underline" style={{ color: GREEN }} onClick={() => setRev(!rev)}>{rev ? "Oldest first" : "Newest first"}</button>
+      </div>
+      {intro && <div className="mb-2 text-sm"><RichDoc text={intro} /></div>}
+      <div className="space-y-2">
+        {list.map((s, i) => (
+          <CollapsibleItem key={allOpen + "-" + s.title + i} title={s.title} defaultOpen={openAll}>
+            <RichDoc text={s.body} />
+          </CollapsibleItem>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function RichEditor({ value, onChange, onBlur, placeholder, minHeight = 160 }) {
   const ref = useRef(null);
   const fileInputRef = useRef(null);
@@ -1874,7 +1941,7 @@ function StudentDocs({ data, refresh, student }) {
       <SectionTitle sub="Notes from your teacher after class, and homework with instant AI feedback.">My document</SectionTitle>
       <Card className="p-5 mb-5">
         <h3 className="font-medium mb-3" style={{ fontFamily: "Georgia, serif" }}>Class notes</h3>
-        {doc.notes.length === 0 ? <p className="text-xs" style={{ color: MUTED }}>Your teacher hasn't added notes yet.</p> : <div className="space-y-2">{doc.notes.map((n) => <div key={n.id} className="text-sm rounded-lg p-3" style={{ backgroundColor: CARD_BEIGE }}><div className="text-xs mb-1" style={{ color: MUTED }}>{n.date}</div><RichDoc text={n.text} /></div>)}</div>}
+        {doc.notes.length === 0 ? <p className="text-xs" style={{ color: MUTED }}>Your teacher hasn't added notes yet.</p> : <div className="space-y-2">{doc.notes.map((n) => { const first = (n.text || "").split("\n").find((l) => l.trim() && !/^!\[/.test(l.trim())) || ""; return <CollapsibleItem key={n.id} title={plainTitle(first).slice(0, 70) || "Lesson notes"} sub={n.date}><RichDoc text={n.text} /></CollapsibleItem>; })}</div>}
       </Card>
       <Card className="p-5">
         <h3 className="font-medium mb-3" style={{ fontFamily: "Georgia, serif" }}>Homework</h3>
@@ -2049,7 +2116,7 @@ function StudentIntensive({ data, refresh, student }) {
   return (
     <div>
       <SectionTitle sub={cohort ? `You're enrolled in ${cohort.name}.` : "Your tasks and work from the intensive course."}>Intensive classroom</SectionTitle>
-      <Card className="p-5 mb-5"><h3 className="font-medium mb-2" style={{ fontFamily: "Georgia, serif" }}>General class document</h3>{cohort?.generalDoc ? <RichDoc text={cohort.generalDoc} /> : <p className="text-sm" style={{ color: MUTED }}>Nothing posted yet.</p>}</Card>
+      <Card className="p-5 mb-5"><h3 className="font-medium mb-2" style={{ fontFamily: "Georgia, serif" }}>General class document</h3>{cohort?.generalDoc ? <CollapsibleDoc text={cohort.generalDoc} /> : <p className="text-sm" style={{ color: MUTED }}>Nothing posted yet.</p>}</Card>
       <Card className="p-5">
         <h3 className="font-medium mb-3" style={{ fontFamily: "Georgia, serif" }}>My tasks</h3>
         {tasks.length === 0 ? <EmptyState text="No tasks assigned yet." /> : (
