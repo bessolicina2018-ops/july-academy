@@ -1950,9 +1950,8 @@ function StudentDocs({ data, refresh, student }) {
             {doc.homework.map((h) => {
               const blanks = countBlanks(h.instructions);
               return (
-              <div key={h.id} className="rounded-lg p-4" style={{ backgroundColor: CARD_BEIGE }}>
-                <div className="font-medium text-sm mb-2">{h.title}</div>
-                {blanks === 0 && <p className="text-xs mt-1" style={{ color: MUTED }}>{h.instructions}</p>}
+              <CollapsibleItem key={h.id} title={h.title} sub={`${h.date} · ${h.status === "checked" ? "Checked" : "To do"}`}><div>
+                                {blanks === 0 && <p className="text-xs mt-1" style={{ color: MUTED }}>{h.instructions}</p>}
                 {h.status === "checked" ? (
                   <><p className="text-xs mt-2 italic whitespace-pre-wrap">"{h.submissionText}"</p><Feedback text={h.aiFeedback} /></>
                 ) : (
@@ -1972,7 +1971,7 @@ function StudentDocs({ data, refresh, student }) {
                     </div>
                   </>
                 )}
-              </div>
+              </div></CollapsibleItem>
               );
             })}
           </div>
@@ -2124,9 +2123,8 @@ function StudentIntensive({ data, refresh, student }) {
             {tasks.map((t) => {
               const blanks = countBlanks(t.instructions);
               return (
-              <div key={t.id} className="rounded-lg p-4" style={{ backgroundColor: CARD_BEIGE }}>
-                <div className="flex justify-between"><span className="font-medium text-sm">{t.title}</span><span className="text-[10px] px-2 py-0.5 rounded-full" style={{ backgroundColor: t.status !== "pending" ? "#dcefdc" : "white" }}>{t.status}</span></div>
-                {blanks === 0 && <p className="text-xs mt-1" style={{ color: MUTED }}>{t.instructions}</p>}
+              <CollapsibleItem key={t.id} title={t.title} sub={t.status === "checked" ? "Checked" : t.status === "done" ? "Done" : "To do"}><div>
+                                {blanks === 0 && <p className="text-xs mt-1" style={{ color: MUTED }}>{t.instructions}</p>}
                 {t.status === "checked" ? (<><p className="text-xs mt-2 italic whitespace-pre-wrap">"{t.submissionText}"</p><Feedback text={t.aiFeedback} /></>) : (
                   <>
                     {blanks > 0 && (
@@ -2144,7 +2142,7 @@ function StudentIntensive({ data, refresh, student }) {
                     </div>
                   </>
                 )}
-              </div>
+              </div></CollapsibleItem>
               );
             })}
           </div>
@@ -2214,9 +2212,8 @@ function StudentCourses({ data, refresh, student }) {
                       const sub = mySubs[t.id];
                       const blanks = countBlanks(t.instructions);
                       return (
-                        <div key={t.id} className="rounded-lg p-4" style={{ backgroundColor: CARD_BEIGE }}>
-                          <div className="font-medium text-sm mb-2">{t.title}</div>
-                          {blanks === 0 && <p className="text-xs mt-1" style={{ color: MUTED }}>{t.instructions}</p>}
+                        <CollapsibleItem key={t.id} title={t.title} sub={sub ? "Checked" : "To do"}><div>
+                                                    {blanks === 0 && <p className="text-xs mt-1" style={{ color: MUTED }}>{t.instructions}</p>}
                           {sub ? (<><p className="text-xs mt-2 italic whitespace-pre-wrap">"{sub.submissionText}"</p><Feedback text={sub.aiFeedback} /></>) : (
                             <>
                               {blanks > 0 && (
@@ -2233,7 +2230,7 @@ function StudentCourses({ data, refresh, student }) {
                               </div>
                             </>
                           )}
-                        </div>
+                        </div></CollapsibleItem>
                       );
                     })}
                   </div>
