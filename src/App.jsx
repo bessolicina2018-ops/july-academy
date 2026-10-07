@@ -2301,10 +2301,16 @@ export default function App() {
   const [checking, setChecking] = useState(true);
   const [session, setSession] = useState(null);
   const [data, setData] = useState(null);
+  const [loadError, setLoadError] = useState(false);
 
   const refresh = useCallback(async () => {
-    const d = await db.fetchAll();
-    setData(d);
+    try {
+      const d = await db.fetchAll();
+      setData(d);
+    } catch (e) {
+      console.error(e);
+      setLoadError(true);
+    }
   }, []);
 
   useEffect(() => {
@@ -2333,6 +2339,9 @@ export default function App() {
     return <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: CREAM }}><Loader2 className="animate-spin" color={GREEN} /></div>;
   }
   if (!session) return <LoginScreen onLogin={setSession} />;
+  if (!data && loadError) {
+    return <div className="min-h-screen flex items-center justify-center p-6 text-center text-sm" style={{ backgroundColor: CREAM, color: INK }}>Something went wrong loading the platform. Please refresh the page; if it keeps happening, tell your teacher.</div>;
+  }
   if (!data) {
     return <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: CREAM }}><Loader2 className="animate-spin" color={GREEN} /></div>;
   }

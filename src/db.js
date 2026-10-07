@@ -26,6 +26,7 @@ export async function fetchAll() {
     { data: grammarGuides },
     { data: teacherInvites },
     { data: watchlistEntries },
+    { data: vocabRows },
   ] = await Promise.all([
     supabase.from("students").select("*"),
     supabase.from("groups").select("*"),
@@ -46,6 +47,7 @@ export async function fetchAll() {
     supabase.from("grammar_guides").select("*").order("position"),
     supabase.from("teacher_invites").select("*").order("created_at", { ascending: false }),
     supabase.from("watchlist_entries").select("*").order("created_at", { ascending: false }),
+    supabase.from("vocab_entries").select("*").order("word"),
   ]);
 
   const curriculum = { A1: [], A2: [], B1: [], B2: [] };
