@@ -10,11 +10,13 @@ import { getAIFeedback } from "./aiFeedback";
 
 const GREEN = "#008541";
 const GREEN_DARK = "#046a35";
-const CREAM = "#FAF6EE";
-const CARD_BEIGE = "#F1ECE0";
-const BORDER = "#E4DECF";
-const INK = "#242320";
-const MUTED = "#7A756A";
+const CREAM = "transparent";
+const ACCENT = "#008541";
+const HEAD = "'Sora', system-ui, sans-serif";
+const CARD_BEIGE = "#EDF7F0";
+const BORDER = "#D6E8DC";
+const INK = "#0F2A1B";
+const MUTED = "#5C7867";
 const LEVELS = ["A1", "A2", "B1", "B2"];
 
 const SELF_LEVELS = ["Complete beginner", "A1", "A2", "B1", "B2", "C1", "C2", "Not sure"];
@@ -65,7 +67,7 @@ function BlankWorksheet({ text, values, onChange, disabled }) {
   return (
     <div className="text-sm leading-relaxed" style={{ color: INK }}>
       {(hasFullBox || hasInlineBlank) && (
-        <div className="text-[11px] mb-3 px-3 py-2 rounded-lg" style={{ backgroundColor: "#f4f1e8", color: MUTED }}>
+        <div className="text-[11px] mb-3 px-3 py-2 rounded-lg" style={{ backgroundColor: CARD_BEIGE, color: MUTED }}>
           {hasFullBox && hasInlineBlank
             ? "Fill in the missing word right inside the sentence. For each full question below, write your answer in the green box underneath it."
             : hasFullBox
@@ -82,7 +84,7 @@ function BlankWorksheet({ text, values, onChange, disabled }) {
           const qn = questionNum;
           return (
             <div key={li} className="my-2">
-              <div className="text-[11px] font-semibold mb-1 uppercase tracking-wide" style={{ color: GREEN }}>Your answer{qn > 1 ? ` — question ${qn}` : ""}</div>
+              <div className="text-[11px] font-semibold mb-1 uppercase tracking-wide" style={{ color: ACCENT }}>Your answer{qn > 1 ? ` — question ${qn}` : ""}</div>
               <textarea
                 value={values[idx] || ""}
                 disabled={disabled}
@@ -125,15 +127,15 @@ function BlankWorksheet({ text, values, onChange, disabled }) {
 /* ---------------- UI atoms ---------------- */
 function Btn({ children, onClick, variant = "primary", className = "", disabled }) {
   const styles = {
-    primary: { backgroundColor: GREEN, color: "white" },
+    primary: { backgroundImage: "linear-gradient(135deg,#00a653,#008541)", color: "white", boxShadow: "0 8px 20px -8px rgba(0,133,65,0.9)" },
     ghost: { backgroundColor: "transparent", color: INK, border: `1px solid ${BORDER}` },
-    danger: { backgroundColor: "transparent", color: "#b3432b", border: "1px solid #e3c9c1" },
+    danger: { backgroundColor: "transparent", color: "#C0392B", border: "1px solid rgba(192,57,43,0.35)" },
   };
   return (
     <button
       onClick={onClick}
       disabled={disabled}
-      className={"inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed " + className}
+      className={"ja-btn inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed " + className}
       style={styles[variant]}
     >
       {children}
@@ -217,8 +219,8 @@ function RichDoc({ text, className = "" }) {
     }
 
     if (/^---+$/.test(t)) { flushList(); elements.push(<hr key={"h" + i} className="my-3" style={{ borderColor: BORDER }} />); i++; continue; }
-    if (/^##\s+/.test(t)) { flushList(); elements.push(<h4 key={"h2" + i} className="text-sm font-semibold mt-3 mb-1" style={{ fontFamily: "Georgia, serif", color: INK }}>{renderInline(t.replace(/^##\s+/, ""))}</h4>); i++; continue; }
-    if (/^#\s+/.test(t)) { flushList(); elements.push(<h3 key={"h1" + i} className="text-base font-semibold mt-3 mb-1" style={{ fontFamily: "Georgia, serif", color: INK }}>{renderInline(t.replace(/^#\s+/, ""))}</h3>); i++; continue; }
+    if (/^##\s+/.test(t)) { flushList(); elements.push(<h4 key={"h2" + i} className="text-sm font-semibold mt-3 mb-1" style={{ fontFamily: HEAD, color: INK }}>{renderInline(t.replace(/^##\s+/, ""))}</h4>); i++; continue; }
+    if (/^#\s+/.test(t)) { flushList(); elements.push(<h3 key={"h1" + i} className="text-base font-semibold mt-3 mb-1" style={{ fontFamily: HEAD, color: INK }}>{renderInline(t.replace(/^#\s+/, ""))}</h3>); i++; continue; }
     if (/^[-*]\s+/.test(t)) { list.push(t.replace(/^[-*]\s+/, "")); i++; continue; }
     flushList();
     if (t === "") { elements.push(<div key={"b" + i} className="h-2" />); i++; continue; }
@@ -279,9 +281,9 @@ function CollapsibleDoc({ text }) {
   return (
     <div>
       <div className="flex gap-3 mb-2 text-xs">
-        <button className="underline" style={{ color: GREEN }} onClick={() => { setOpenAll(true); setAllOpen((n) => n + 1); }}>Open all</button>
-        <button className="underline" style={{ color: GREEN }} onClick={() => { setOpenAll(false); setAllOpen((n) => n + 1); }}>Close all</button>
-        <button className="underline" style={{ color: GREEN }} onClick={() => setRev(!rev)}>{rev ? "Oldest first" : "Newest first"}</button>
+        <button className="underline" style={{ color: ACCENT }} onClick={() => { setOpenAll(true); setAllOpen((n) => n + 1); }}>Open all</button>
+        <button className="underline" style={{ color: ACCENT }} onClick={() => { setOpenAll(false); setAllOpen((n) => n + 1); }}>Close all</button>
+        <button className="underline" style={{ color: ACCENT }} onClick={() => setRev(!rev)}>{rev ? "Oldest first" : "Newest first"}</button>
       </div>
       {intro && <div className="mb-2 text-sm"><RichDoc text={intro} /></div>}
       <div className="space-y-2">
@@ -439,12 +441,12 @@ function CheckboxGroup({ options, values, onChange, max, disabled }) {
   );
 }
 function Card({ children, className = "", style = {}, onClick }) {
-  return <div className={"rounded-2xl bg-white " + className} style={{ border: `1px solid ${BORDER}`, ...style }} onClick={onClick}>{children}</div>;
+  return <div className={"ja-card rounded-3xl bg-white " + className} style={{ border: `1px solid ${BORDER}`, ...style }} onClick={onClick}>{children}</div>;
 }
 function SectionTitle({ children, sub }) {
   return (
     <div className="mb-5">
-      <h2 className="text-2xl" style={{ fontFamily: "Georgia, serif", color: INK }}>{children}</h2>
+      <h2 className="text-2xl" style={{ fontFamily: HEAD, color: INK }}>{children}</h2>
       {sub && <p className="text-sm mt-1" style={{ color: MUTED }}>{sub}</p>}
     </div>
   );
@@ -454,7 +456,7 @@ function EmptyState({ text }) {
 }
 function Feedback({ text }) {
   return (
-    <div className="mt-3 rounded-xl p-4 text-sm whitespace-pre-line" style={{ backgroundColor: "#eef6ee", border: "1px solid #cfe6cf", color: "#204d2c" }}>
+    <div className="mt-3 rounded-xl p-4 text-sm whitespace-pre-line" style={{ backgroundColor: "rgba(0,133,65,0.07)", border: "1px solid rgba(0,133,65,0.25)", color: "#0B5A2E" }}>
       <div className="flex items-center gap-2 mb-2 font-medium"><Sparkles size={15} /> Feedback de IA</div>
       {text}
     </div>
@@ -462,10 +464,10 @@ function Feedback({ text }) {
 }
 function Modal({ title, onClose, children, wide }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: "rgba(30,28,22,0.35)" }} onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} className={"bg-white rounded-2xl w-full " + (wide ? "max-w-2xl" : "max-w-md")} style={{ border: `1px solid ${BORDER}`, maxHeight: "88vh", overflowY: "auto" }}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: "rgba(8,40,22,0.45)", backdropFilter: "blur(6px)" }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className={"ja-modal rounded-3xl w-full " + (wide ? "max-w-2xl" : "max-w-md")} style={{ border: `1px solid ${BORDER}`, maxHeight: "88vh", overflowY: "auto" }}>
         <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: `1px solid ${BORDER}` }}>
-          <h3 className="text-lg" style={{ fontFamily: "Georgia, serif", color: INK }}>{title}</h3>
+          <h3 className="text-lg" style={{ fontFamily: HEAD, color: INK }}>{title}</h3>
           <button onClick={onClose}><X size={18} color={MUTED} /></button>
         </div>
         <div className="p-5">{children}</div>
@@ -474,7 +476,7 @@ function Modal({ title, onClose, children, wide }) {
   );
 }
 function Logo({ size = 36 }) {
-  return <div className="rounded-full flex items-center justify-center font-bold text-white" style={{ width: size, height: size, backgroundColor: GREEN, fontFamily: "Georgia, serif" }}>J</div>;
+  return <div className="rounded-full flex items-center justify-center font-bold text-white shrink-0" style={{ width: size, height: size, backgroundImage: "linear-gradient(135deg,#19c26b,#008541)", boxShadow: "0 6px 18px rgba(0,133,65,0.45)", fontFamily: HEAD }}>J</div>;
 }
 
 /* ---------------- Login ---------------- */
@@ -508,24 +510,24 @@ function LoginScreen({ onLogin }) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6" style={{ backgroundColor: CREAM }}>
-      <Card className="w-full max-w-md p-8">
+    <div className="ja-login min-h-screen flex items-center justify-center p-4 sm:p-6">
+      <Card className="ja-rise w-full max-w-md p-6 sm:p-8">
         <div className="flex items-center gap-3 mb-8">
           <Logo />
-          <span className="text-xl" style={{ fontFamily: "Georgia, serif", color: INK }}>July Academy</span>
+          <span className="text-xl" style={{ fontFamily: HEAD, color: INK }}>July Academy</span>
         </div>
 
         {!mode && (
           <>
-            <h1 className="text-3xl mb-2" style={{ fontFamily: "Georgia, serif", color: INK }}>Welcome</h1>
+            <h1 className="text-3xl mb-2" style={{ fontFamily: HEAD, color: INK }}>Welcome</h1>
             <p className="text-sm mb-6" style={{ color: MUTED }}>Your Spanish classroom — lessons, homework, resources and practice, all in one place.</p>
-            <div className="grid grid-cols-2 gap-3">
-              <button onClick={() => { setMode("teacher"); setError(""); }} className="text-left p-4 rounded-xl" style={{ backgroundColor: CARD_BEIGE, border: `1px solid ${BORDER}` }}>
-                <div className="font-medium mb-1" style={{ fontFamily: "Georgia, serif" }}>I'm the teacher</div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button onClick={() => { setMode("teacher"); setError(""); }} className="ja-tile text-left p-4 rounded-2xl" style={{ backgroundColor: CARD_BEIGE, border: `1px solid ${BORDER}` }}>
+                <div className="font-medium mb-1" style={{ fontFamily: HEAD }}>I'm the teacher</div>
                 <div className="text-xs" style={{ color: MUTED }}>Manage students, lessons & content</div>
               </button>
-              <button onClick={() => { setMode("student"); setError(""); }} className="text-left p-4 rounded-xl" style={{ backgroundColor: CARD_BEIGE, border: `1px solid ${BORDER}` }}>
-                <div className="font-medium mb-1" style={{ fontFamily: "Georgia, serif" }}>I'm a student</div>
+              <button onClick={() => { setMode("student"); setError(""); }} className="ja-tile text-left p-4 rounded-2xl" style={{ backgroundColor: CARD_BEIGE, border: `1px solid ${BORDER}` }}>
+                <div className="font-medium mb-1" style={{ fontFamily: HEAD }}>I'm a student</div>
                 <div className="text-xs" style={{ color: MUTED }}>Log in with your name & code</div>
               </button>
             </div>
@@ -547,7 +549,7 @@ function LoginScreen({ onLogin }) {
             {teacherTab === "signup" && (
               <div className="mb-3"><label className="text-xs" style={{ color: MUTED }}>Invite code (from your school admin)</label><Input value={inviteCode} onChange={(e) => setInviteCode(e.target.value)} /></div>
             )}
-            {error && <p className="text-xs mb-3" style={{ color: "#b3432b" }}>{error}</p>}
+            {error && <p className="text-xs mb-3" style={{ color: "#C0392B" }}>{error}</p>}
             <Btn onClick={submitTeacher} disabled={loading} className="w-full justify-center">
               {loading ? <Loader2 size={14} className="animate-spin" /> : null} {teacherTab === "signup" ? "Create account" : "Enter"}
             </Btn>
@@ -557,10 +559,10 @@ function LoginScreen({ onLogin }) {
         {mode === "student" && (
           <div>
             <button onClick={() => setMode(null)} className="text-xs mb-4 flex items-center gap-1" style={{ color: MUTED }}><ChevronLeft size={14} />Back</button>
-            <h2 className="text-xl mb-4" style={{ fontFamily: "Georgia, serif" }}>Student login</h2>
+            <h2 className="text-xl mb-4" style={{ fontFamily: HEAD }}>Student login</h2>
             <div className="mb-3"><label className="text-xs" style={{ color: MUTED }}>Your name</label><Input value={name} onChange={(e) => setName(e.target.value)} /></div>
             <div className="mb-3"><label className="text-xs" style={{ color: MUTED }}>Your access code</label><Input value={code} onChange={(e) => setCode(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submitStudent()} /></div>
-            {error && <p className="text-xs mb-3" style={{ color: "#b3432b" }}>{error}</p>}
+            {error && <p className="text-xs mb-3" style={{ color: "#C0392B" }}>{error}</p>}
             <Btn onClick={submitStudent} disabled={loading} className="w-full justify-center">
               {loading ? <Loader2 size={14} className="animate-spin" /> : null} Enter classroom
             </Btn>
@@ -573,35 +575,78 @@ function LoginScreen({ onLogin }) {
 
 /* ---------------- Shell ---------------- */
 function Shell({ roleLabel, tabs, active, setActive, onLogout, children }) {
+  const [more, setMore] = useState(false);
+  const main = tabs.slice(0, 4);
+  const rest = tabs.slice(4);
+  const restActive = rest.some((t) => t.key === active);
+  const go = (k) => { setActive(k); setMore(false); if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" }); };
   return (
-    <div className="min-h-screen flex" style={{ backgroundColor: CREAM }}>
-      <div className="w-64 shrink-0 p-5 hidden md:flex md:flex-col" style={{ borderRight: `1px solid ${BORDER}` }}>
-        <div className="flex items-center gap-2 mb-8">
-          <Logo size={32} />
+    <div className="min-h-screen flex">
+      {/* Desktop sidebar */}
+      <div className="ja-side w-64 shrink-0 p-5 hidden md:flex md:flex-col sticky top-0 h-screen overflow-y-auto">
+        <div className="flex items-center gap-3 mb-8">
+          <Logo size={38} />
           <div>
-            <div className="text-sm font-medium" style={{ fontFamily: "Georgia, serif", color: INK }}>July Academy</div>
-            <div className="text-xs" style={{ color: MUTED }}>{roleLabel}</div>
+            <div className="text-sm font-semibold" style={{ fontFamily: HEAD, color: "white" }}>July Academy</div>
+            <div className="text-xs" style={{ color: "rgba(255,255,255,0.75)" }}>{roleLabel}</div>
           </div>
         </div>
         <nav className="flex flex-col gap-1 flex-1">
           {tabs.map((t) => (
-            <button key={t.key} onClick={() => setActive(t.key)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-left" style={{ backgroundColor: active === t.key ? CARD_BEIGE : "transparent", color: active === t.key ? INK : MUTED, fontWeight: active === t.key ? 600 : 400 }}>
-              <t.icon size={16} /> {t.label}
-              {t.badge && <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: GREEN }} />}
+            <button key={t.key} onClick={() => go(t.key)} className={"ja-nav flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-left " + (active === t.key ? "ja-nav-on" : "")} style={{ color: active === t.key ? "#0B5A2E" : "rgba(255,255,255,0.88)", fontWeight: active === t.key ? 600 : 400 }}>
+              <t.icon size={17} /> <span className="flex-1">{t.label}</span>
+              {t.badge && <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: "#fff" }} />}
             </button>
           ))}
         </nav>
-        <button onClick={onLogout} className="flex items-center gap-2 text-sm px-3 py-2" style={{ color: MUTED }}><LogOut size={15} /> Log out</button>
+        <button onClick={onLogout} className="flex items-center gap-2 text-sm px-3 py-2" style={{ color: "rgba(255,255,255,0.85)" }}><LogOut size={15} /> Log out</button>
       </div>
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 flex overflow-x-auto gap-1 p-2" style={{ backgroundColor: "white", borderTop: `1px solid ${BORDER}` }}>
-        {tabs.map((t) => (
-          <button key={t.key} onClick={() => setActive(t.key)} className="flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg shrink-0" style={{ backgroundColor: active === t.key ? CARD_BEIGE : "transparent" }}>
-            <t.icon size={16} color={active === t.key ? GREEN : MUTED} />
-            <span className="text-[10px]" style={{ color: active === t.key ? INK : MUTED }}>{t.label}</span>
+
+      {/* Mobile top bar */}
+      <div className="ja-top md:hidden fixed top-0 left-0 right-0 z-40 flex items-center gap-3 px-4" style={{ paddingTop: "env(safe-area-inset-top)", height: "calc(56px + env(safe-area-inset-top))" }}>
+        <Logo size={30} />
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-semibold leading-tight" style={{ fontFamily: HEAD, color: "white" }}>July Academy</div>
+          <div className="text-[11px] truncate" style={{ color: "rgba(255,255,255,0.8)" }}>{roleLabel}</div>
+        </div>
+        <button onClick={onLogout} aria-label="Log out" className="p-2 rounded-full" style={{ color: "white" }}><LogOut size={18} /></button>
+      </div>
+
+      {/* Mobile bottom bar */}
+      <div className="ja-glass md:hidden fixed bottom-0 left-0 right-0 z-40 flex justify-around px-2 pt-2" style={{ borderTop: `1px solid ${BORDER}`, paddingBottom: "calc(8px + env(safe-area-inset-bottom))" }}>
+        {main.map((t) => (
+          <button key={t.key} onClick={() => go(t.key)} className="ja-tab flex flex-col items-center justify-center gap-1 rounded-2xl flex-1 py-1.5" style={{ minHeight: 48 }}>
+            <span className={"ja-tab-ic " + (active === t.key ? "ja-tab-on" : "")}><t.icon size={19} color={active === t.key ? "white" : MUTED} /></span>
+            <span className="text-[10px] leading-none truncate max-w-full" style={{ color: active === t.key ? INK : MUTED }}>{t.label.replace(/^My /, "").split(" ")[0].replace(/^./, (c) => c.toUpperCase())}</span>
           </button>
         ))}
+        {rest.length > 0 && (
+          <button onClick={() => setMore(true)} className="ja-tab flex flex-col items-center justify-center gap-1 rounded-2xl flex-1 py-1.5" style={{ minHeight: 48 }}>
+            <span className={"ja-tab-ic " + (restActive ? "ja-tab-on" : "")}><List size={19} color={restActive ? "white" : MUTED} /></span>
+            <span className="text-[10px] leading-none" style={{ color: restActive ? INK : MUTED }}>More</span>
+          </button>
+        )}
       </div>
-      <div className="flex-1 p-6 md:p-10 pb-24 md:pb-10 max-w-5xl">{children}</div>
+
+      {/* Mobile "More" sheet */}
+      {more && (
+        <div className="md:hidden fixed inset-0 z-50 flex items-end" style={{ backgroundColor: "rgba(8,40,22,0.45)", backdropFilter: "blur(6px)" }} onClick={() => setMore(false)}>
+          <div className="ja-sheet ja-modal w-full rounded-t-3xl p-5" style={{ border: `1px solid ${BORDER}`, paddingBottom: "calc(20px + env(safe-area-inset-bottom))", maxHeight: "80vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
+            <div className="mx-auto mb-4 rounded-full" style={{ width: 40, height: 4, backgroundColor: BORDER }} />
+            <div className="grid grid-cols-3 gap-3">
+              {tabs.map((t) => (
+                <button key={t.key} onClick={() => go(t.key)} className="ja-tile flex flex-col items-center gap-2 rounded-2xl p-3 relative" style={{ backgroundColor: active === t.key ? GREEN : CARD_BEIGE, border: `1px solid ${active === t.key ? ACCENT : BORDER}` }}>
+                  <t.icon size={22} color={active === t.key ? "white" : ACCENT} />
+                  <span className="text-[11px] text-center leading-tight" style={{ color: active === t.key ? "white" : INK }}>{t.label}</span>
+                  {t.badge && <span className="absolute top-2 right-2 w-2 h-2 rounded-full" style={{ backgroundColor: ACCENT }} />}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div key={active} className="ja-rise flex-1 min-w-0 px-4 md:px-10 pt-20 md:pt-10 pb-28 md:pb-10 max-w-5xl">{children}</div>
     </div>
   );
 }
@@ -687,10 +732,10 @@ function TeacherStudents({ data, refresh }) {
               <Card key={s.id} className="p-4 flex items-center justify-between flex-wrap gap-3">
                 <div>
                   <div className="font-medium" style={{ color: INK }}>{s.name} <span className="text-xs font-normal" style={{ color: MUTED }}>· {s.level}</span></div>
-                  <div className="text-xs mt-1" style={{ color: MUTED }}>Login code: <span className="font-mono px-2 py-0.5 rounded" style={{ backgroundColor: CARD_BEIGE }}>{s.code}</span>{s.profileId && <span className="ml-2" style={{ color: GREEN }}>· linked</span>}{s.lastLoginAt && <span className="ml-2">· last active {new Date(s.lastLoginAt).toLocaleDateString()}</span>}</div>
+                  <div className="text-xs mt-1" style={{ color: MUTED }}>Login code: <span className="font-mono px-2 py-0.5 rounded" style={{ backgroundColor: CARD_BEIGE }}>{s.code}</span>{s.profileId && <span className="ml-2" style={{ color: ACCENT }}>· linked</span>}{s.lastLoginAt && <span className="ml-2">· last active {new Date(s.lastLoginAt).toLocaleDateString()}</span>}</div>
                 </div>
                 <div className="flex items-center gap-3 flex-wrap">
-                  <button onClick={() => setProfileStudent(s)} className="text-xs px-2 py-1 rounded-full" style={{ backgroundColor: data.studentProfiles[s.id]?.completedAt ? "#eef6ee" : CARD_BEIGE, color: data.studentProfiles[s.id]?.completedAt ? GREEN : MUTED }}>Profile</button>
+                  <button onClick={() => setProfileStudent(s)} className="text-xs px-2 py-1 rounded-full" style={{ backgroundColor: data.studentProfiles[s.id]?.completedAt ? "rgba(0,133,65,0.09)" : CARD_BEIGE, color: data.studentProfiles[s.id]?.completedAt ? GREEN : MUTED }}>Profile</button>
                   <label className="flex items-center gap-1.5 text-xs" style={{ color: MUTED }}>
                     Group:
                     <Select value={s.groupId || ""} onChange={(e) => setGroup(s.id, e.target.value || null)} className="!py-1 !text-xs w-auto">
@@ -705,7 +750,7 @@ function TeacherStudents({ data, refresh }) {
                       {data.groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
                     </Select>
                   </label>
-                  <button onClick={() => removeStudent(s.id)}><Trash2 size={15} color="#b3432b" /></button>
+                  <button onClick={() => removeStudent(s.id)}><Trash2 size={15} color="#C0392B" /></button>
                 </div>
               </Card>
             );
@@ -809,7 +854,7 @@ function TeacherTimetable({ data, refresh }) {
           {sorted.map((slot) => (
             <Card key={slot.id} className="p-4 flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-3">
-                <div className="text-center rounded-lg px-3 py-1.5" style={{ backgroundColor: slot.date < now ? "#F1ECE0" : "#eef6ee" }}>
+                <div className="text-center rounded-lg px-3 py-1.5" style={{ backgroundColor: slot.date < now ? CARD_BEIGE : "rgba(0,133,65,0.09)" }}>
                   <div className="text-xs" style={{ color: MUTED }}>{slot.date}</div>
                   <div className="text-sm font-medium" style={{ color: INK }}>{slot.time}</div>
                 </div>
@@ -818,7 +863,7 @@ function TeacherTimetable({ data, refresh }) {
                   <div className="text-xs" style={{ color: MUTED }}>{describeAudience(slot)} · {slot.duration} min</div>
                 </div>
               </div>
-              <button onClick={() => removeSlot(slot.id)}><Trash2 size={15} color="#b3432b" /></button>
+              <button onClick={() => removeSlot(slot.id)}><Trash2 size={15} color="#C0392B" /></button>
             </Card>
           ))}
         </div>
@@ -889,7 +934,7 @@ function TeacherDocs({ data, refresh }) {
       <SectionTitle sub="After each class, leave notes on what you covered and assign homework — students get instant AI feedback when they submit.">Personal documents</SectionTitle>
       {recentSubmissions.length > 0 && (
         <Card className="p-5 mb-5">
-          <h3 className="font-medium mb-3" style={{ fontFamily: "Georgia, serif" }}>Recently submitted homework</h3>
+          <h3 className="font-medium mb-3" style={{ fontFamily: HEAD }}>Recently submitted homework</h3>
           <div className="space-y-2">
             {recentSubmissions.map((h) => (
               <button key={h.id} onClick={() => setSelected(h.studentId)} className="w-full text-left rounded-lg p-3 hover:opacity-90" style={{ backgroundColor: CARD_BEIGE }}>
@@ -907,7 +952,7 @@ function TeacherDocs({ data, refresh }) {
         <>
           <div className="mb-5"><Select value={selected} onChange={(e) => setSelected(e.target.value)}>{data.students.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</Select></div>
           <Card className="p-5 mb-5">
-            <h3 className="font-medium mb-2" style={{ fontFamily: "Georgia, serif" }}>Class notes</h3>
+            <h3 className="font-medium mb-2" style={{ fontFamily: HEAD }}>Class notes</h3>
             <RichEditor value={note} onChange={setNote} placeholder="What did you cover today?" minHeight={100} />
             <div className="mt-2"><Btn onClick={addNote}><Plus size={14} />Add note</Btn></div>
             <div className="mt-4 space-y-2">
@@ -915,7 +960,7 @@ function TeacherDocs({ data, refresh }) {
                 <div key={n.id} className="text-sm rounded-lg p-3" style={{ backgroundColor: CARD_BEIGE }}>
                   <div className="flex items-center justify-between mb-1">
                     <div className="text-xs" style={{ color: MUTED }}>{n.date}</div>
-                    {editingNoteId !== n.id && <button onClick={() => startEdit(n)} className="text-xs underline" style={{ color: GREEN }}>Edit</button>}
+                    {editingNoteId !== n.id && <button onClick={() => startEdit(n)} className="text-xs underline" style={{ color: ACCENT }}>Edit</button>}
                   </div>
                   {editingNoteId === n.id ? (
                     <div>
@@ -932,7 +977,7 @@ function TeacherDocs({ data, refresh }) {
           </Card>
           <Card className="p-5">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="font-medium" style={{ fontFamily: "Georgia, serif" }}>Homework</h3>
+              <h3 className="font-medium" style={{ fontFamily: HEAD }}>Homework</h3>
               <Btn variant="ghost" onClick={() => setShowTask(true)}><Plus size={14} />Assign</Btn>
             </div>
             {doc.homework.length === 0 ? <EmptyState text="No homework assigned yet." /> : (
@@ -941,7 +986,7 @@ function TeacherDocs({ data, refresh }) {
                   <div key={h.id} className="rounded-lg p-4" style={{ backgroundColor: CARD_BEIGE }}>
                     <div className="flex justify-between items-start">
                       <div className="font-medium text-sm">{h.title}</div>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ backgroundColor: h.status === "checked" ? "#dcefdc" : "white", color: h.status === "checked" ? "#204d2c" : MUTED }}>{h.status}</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ backgroundColor: h.status === "checked" ? "rgba(0,133,65,0.18)" : "white", color: h.status === "checked" ? "#204d2c" : MUTED }}>{h.status}</span>
                     </div>
                     {editingHwId === h.id ? (
                       <div className="mt-2">
@@ -956,8 +1001,8 @@ function TeacherDocs({ data, refresh }) {
                       <>
                         <p className="text-xs mt-1 whitespace-pre-wrap" style={{ color: MUTED }}>{h.instructions}</p>
                         <div className="mt-1.5 flex gap-3">
-                          {h.status !== "checked" && <button onClick={() => startEditHw(h)} className="text-xs underline" style={{ color: GREEN }}>Edit instructions</button>}
-                          <button onClick={() => removeHw(h.id)} className="text-xs underline" style={{ color: "#b3432b" }}>Delete</button>
+                          {h.status !== "checked" && <button onClick={() => startEditHw(h)} className="text-xs underline" style={{ color: ACCENT }}>Edit instructions</button>}
+                          <button onClick={() => removeHw(h.id)} className="text-xs underline" style={{ color: "#C0392B" }}>Delete</button>
                         </div>
                       </>
                     )}
@@ -1017,12 +1062,12 @@ function TeacherResources({ data, refresh }) {
               <Card key={r.id} className="p-4">
                 <div className="flex items-center justify-between gap-3">
                   <button onClick={() => setExpanded(isOpen ? null : r.id)} className="flex items-center gap-3 flex-1 text-left">
-                    <Icon size={18} color={GREEN} />
+                    <Icon size={18} color={ACCENT} />
                     <div className="text-sm font-medium">{r.title}{r.level && <span className="text-xs font-normal ml-2 px-1.5 py-0.5 rounded" style={{ backgroundColor: CARD_BEIGE, color: MUTED }}>{r.level}</span>}</div>
                   </button>
                   <div className="flex items-center gap-2">
-                    {r.url && <a href={r.url} target="_blank" rel="noreferrer" className="text-xs underline" style={{ color: GREEN }}>Open link</a>}
-                    <button onClick={() => remove(r.id)}><Trash2 size={15} color="#b3432b" /></button>
+                    {r.url && <a href={r.url} target="_blank" rel="noreferrer" className="text-xs underline" style={{ color: ACCENT }}>Open link</a>}
+                    <button onClick={() => remove(r.id)}><Trash2 size={15} color="#C0392B" /></button>
                   </div>
                 </div>
                 {isOpen && r.description && <div className="mt-3"><RichDoc text={r.description} /></div>}
@@ -1160,7 +1205,7 @@ function TeacherFlashcards({ data, refresh }) {
         <p className="text-xs mb-3" style={{ color: MUTED }}>{form.targets.length === 0 ? "No one selected — this card won't be visible to any student until you assign it below." : `${form.targets.length} selected: ${form.targets.map((k) => labelForTarget({ type: k.startsWith("group:") ? "group" : "student", id: k.split(":")[1] })).join(", ")}`}</p>
 
         <div className="mb-2"><Btn variant="ghost" onClick={generate} disabled={generating || !form.word.trim()}>{generating ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />} Generate with AI</Btn></div>
-        {genError && <p className="text-xs mb-2" style={{ color: "#b3432b" }}>{genError}</p>}
+        {genError && <p className="text-xs mb-2" style={{ color: "#C0392B" }}>{genError}</p>}
         <div className="grid md:grid-cols-2 gap-2 mb-2">
           <Input value={form.translation} onChange={(e) => setForm({ ...form, translation: e.target.value })} placeholder="Translation" />
           {category !== "verb" && <Input value={form.example} onChange={(e) => setForm({ ...form, example: e.target.value })} placeholder="Example sentence" />}
@@ -1172,7 +1217,7 @@ function TeacherFlashcards({ data, refresh }) {
             {form.example && <div className="mt-2 rounded-lg p-3" style={{ backgroundColor: CARD_BEIGE }}><RichDoc text={form.example} /></div>}
           </div>
         )}
-        {addError && <p className="text-xs mb-2" style={{ color: "#b3432b" }}>{addError}</p>}
+        {addError && <p className="text-xs mb-2" style={{ color: "#C0392B" }}>{addError}</p>}
         <div className="mt-3"><Btn onClick={add} disabled={adding}>{adding ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}Add {catMeta.label.toLowerCase().replace(/s$/, "")}</Btn></div>
       </Card>
 
@@ -1192,7 +1237,7 @@ function TeacherFlashcards({ data, refresh }) {
                 {f.example && <div className="text-xs mt-1" style={{ color: MUTED }}><RichDoc text={f.example} /></div>}
                 <button onClick={() => startEdit(f)} className="text-[10px] mt-1 inline-block px-2 py-0.5 rounded-full underline" style={{ backgroundColor: CARD_BEIGE, color: MUTED }}>{targetLabel(f)} · edit</button>
               </div>
-              <button onClick={() => remove(f.id)}><Trash2 size={14} color="#b3432b" /></button>
+              <button onClick={() => remove(f.id)}><Trash2 size={14} color="#C0392B" /></button>
             </Card>
           ))}
         </div>
@@ -1258,7 +1303,7 @@ function TeacherCurriculum({ data, refresh }) {
             {generating ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />} Generate {level} curriculum with AI
           </Btn>
         </div>
-        {genError && <p className="text-xs mb-3" style={{ color: "#b3432b" }}>{genError}</p>}
+        {genError && <p className="text-xs mb-3" style={{ color: "#C0392B" }}>{genError}</p>}
         {data.students.length > 0 && (
           <div className="mb-3"><label className="text-xs" style={{ color: MUTED }}>Mark progress for:</label><Select value={studentId} onChange={(e) => setStudentId(e.target.value)}>{data.students.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</Select></div>
         )}
@@ -1317,7 +1362,7 @@ function TeacherIntensive({ data, refresh }) {
             </Select>
           </div>
           <Card className="p-5 mb-6">
-            <h3 className="font-medium mb-2" style={{ fontFamily: "Georgia, serif" }}>General class document — {cohort?.name}</h3>
+            <h3 className="font-medium mb-2" style={{ fontFamily: HEAD }}>General class document — {cohort?.name}</h3>
             <RichEditor value={docDraft} onChange={setDocDraft} onBlur={saveDoc} placeholder="Write your class notes here..." />
             <p className="text-xs mt-1" style={{ color: MUTED }}>Saves automatically when you click away.</p>
           </Card>
@@ -1337,7 +1382,7 @@ function TeacherIntensive({ data, refresh }) {
                         ) : (
                           <span className="font-medium text-sm">{t.title}</span>
                         )}
-                        <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ backgroundColor: t.status === "checked" ? "#dcefdc" : "white" }}>{t.status}</span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ backgroundColor: t.status === "checked" ? "rgba(0,133,65,0.18)" : "white" }}>{t.status}</span>
                       </div>
                       {editingTaskId === t.id ? (
                         <div className="mt-2">
@@ -1352,8 +1397,8 @@ function TeacherIntensive({ data, refresh }) {
                         <>
                           <p className="text-xs mt-1 whitespace-pre-wrap" style={{ color: MUTED }}>{t.instructions}</p>
                           <div className="mt-1.5 flex gap-3">
-                            {t.status !== "checked" && <button onClick={() => startEditTask(t)} className="text-xs underline" style={{ color: GREEN }}>Edit</button>}
-                            <button onClick={() => removeTask(t.id)} className="text-xs underline" style={{ color: "#b3432b" }}>Delete</button>
+                            {t.status !== "checked" && <button onClick={() => startEditTask(t)} className="text-xs underline" style={{ color: ACCENT }}>Edit</button>}
+                            <button onClick={() => removeTask(t.id)} className="text-xs underline" style={{ color: "#C0392B" }}>Delete</button>
                           </div>
                         </>
                       )}
@@ -1409,12 +1454,12 @@ function TeacherPrerecorded({ data, refresh }) {
           {course && (
             <>
               <Card className="p-5 mb-5">
-                <h3 className="font-medium mb-2" style={{ fontFamily: "Georgia, serif" }}>Theory document</h3>
+                <h3 className="font-medium mb-2" style={{ fontFamily: HEAD }}>Theory document</h3>
                 <RichEditor value={theoryDraft} onChange={setTheoryDraft} onBlur={saveTheory} placeholder="Write the course theory here..." />
               </Card>
               <Card className="p-5">
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-medium" style={{ fontFamily: "Georgia, serif" }}>Tasks</h3>
+                  <h3 className="font-medium" style={{ fontFamily: HEAD }}>Tasks</h3>
                   <Btn variant="ghost" onClick={() => setShowTask(true)}><Plus size={14} />Add task</Btn>
                 </div>
                 {course.tasks.length === 0 ? <EmptyState text="No tasks yet." /> : (
@@ -1527,20 +1572,20 @@ function TeacherVocab({ kind, data, refresh }) {
             <Card key={v.id} className="p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <div className="font-medium" style={{ fontFamily: "Georgia, serif" }}>{v.word} <span className="font-normal text-sm" style={{ color: MUTED }}>— {v.translation}</span></div>
+                  <div className="font-medium" style={{ fontFamily: HEAD }}>{v.word} <span className="font-normal text-sm" style={{ color: MUTED }}>— {v.translation}</span></div>
                   {v.example && <div className="text-xs mt-1 italic whitespace-pre-wrap" style={{ color: MUTED }}>{v.example}</div>}
                   {v.conjugation && <div className="mt-2 text-sm"><RichDoc text={v.conjugation} /></div>}
                 </div>
                 <div className="flex flex-col items-end gap-1 shrink-0">
                   <div className="flex gap-1">
-                    {v.fromFlashcard ? <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ backgroundColor: "#eef6ee" }}>Flashcard</span> : <>
+                    {v.fromFlashcard ? <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ backgroundColor: "rgba(0,133,65,0.09)" }}>Flashcard</span> : <>
                     <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ backgroundColor: CARD_BEIGE }}>{v.level || "All levels"}</span>
                     <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ backgroundColor: CARD_BEIGE }}>{v.groupId ? groupName(v.groupId) : "Everyone"}</span></>}
                   </div>
                   {v.fromFlashcard ? <div className="text-[10px] mt-1" style={{ color: MUTED }}>From flashcards — edit there</div> : (
                   <div className="flex gap-3 mt-1">
-                    <button onClick={() => openEdit(v)} className="text-xs underline" style={{ color: GREEN }}>Edit</button>
-                    <button onClick={() => remove(v.id)} className="text-xs underline" style={{ color: "#b3432b" }}>Delete</button>
+                    <button onClick={() => openEdit(v)} className="text-xs underline" style={{ color: ACCENT }}>Edit</button>
+                    <button onClick={() => remove(v.id)} className="text-xs underline" style={{ color: "#C0392B" }}>Delete</button>
                   </div>)}
                 </div>
               </div>
@@ -1568,7 +1613,7 @@ function TeacherVocab({ kind, data, refresh }) {
               <div><label className="text-xs" style={{ color: MUTED }}>Level</label><Select value={form.level} onChange={(e) => setForm({ ...form, level: e.target.value })}><option value="">All levels</option>{LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}</Select></div>
               <div><label className="text-xs" style={{ color: MUTED }}>Group</label><Select value={form.groupId} onChange={(e) => setForm({ ...form, groupId: e.target.value })}><option value="">Everyone</option>{data.groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}</Select></div>
             </div>
-            {err && <p className="text-xs" style={{ color: "#b3432b" }}>{err}</p>}
+            {err && <p className="text-xs" style={{ color: "#C0392B" }}>{err}</p>}
             <Btn onClick={save} className="w-full justify-center">Save</Btn>
           </div>
         </Modal>
@@ -1595,7 +1640,7 @@ function StudentVocab({ kind, data }) {
             return (
               <Card key={v.id} className={"p-4 " + (expandable ? "cursor-pointer" : "")} onClick={expandable ? () => setOpen(open === v.id ? null : v.id) : undefined}>
                 <div className="flex items-center justify-between gap-3">
-                  <div className="font-medium" style={{ fontFamily: "Georgia, serif" }}>{v.word} <span className="font-normal text-sm" style={{ color: MUTED }}>— {v.translation}</span></div>
+                  <div className="font-medium" style={{ fontFamily: HEAD }}>{v.word} <span className="font-normal text-sm" style={{ color: MUTED }}>— {v.translation}</span></div>
                   {expandable && <ChevronRight size={16} color={MUTED} style={{ transform: open === v.id ? "rotate(90deg)" : "none" }} />}
                 </div>
                 {v.example && <div className="text-xs mt-1 italic whitespace-pre-wrap" style={{ color: MUTED }}>{v.example}</div>}
@@ -1640,11 +1685,11 @@ function TeacherGrammarGuides({ data, refresh }) {
             <Select value={selected} onChange={(e) => setSelected(e.target.value)}>
               {data.grammarGuides.map((g) => <option key={g.id} value={g.id}>{g.title}</option>)}
             </Select>
-            {selected && <button onClick={() => remove(selected)}><Trash2 size={16} color="#b3432b" /></button>}
+            {selected && <button onClick={() => remove(selected)}><Trash2 size={16} color="#C0392B" /></button>}
           </div>
           {guide && (
             <Card className="p-5">
-              <h3 className="font-medium mb-2" style={{ fontFamily: "Georgia, serif" }}>{guide.title}</h3>
+              <h3 className="font-medium mb-2" style={{ fontFamily: HEAD }}>{guide.title}</h3>
               <RichEditor value={draft} onChange={setDraft} onBlur={save} placeholder="Write the guide here..." minHeight={300} />
               <p className="text-xs mt-1" style={{ color: MUTED }}>Saves automatically when you click away.</p>
             </Card>
@@ -1760,7 +1805,7 @@ function StudentProfileForm({ data, refresh, student, onDone }) {
         {profile?.completedAt ? "My profile" : "Tell us about yourself"}
       </SectionTitle>
       <div className="space-y-5 max-w-2xl">
-        <div className="text-xs rounded-lg p-3" style={{ backgroundColor: "#eef6ee", border: "1px solid #cfe6cf", color: "#204d2c" }}>
+        <div className="text-xs rounded-lg p-3" style={{ backgroundColor: "rgba(0,133,65,0.07)", border: "1px solid rgba(0,133,65,0.25)", color: "#0B5A2E" }}>
           This information is only visible to your teacher, and is used to personalize your lessons — it's never shared with anyone else. If you're under 14, please check with a parent or guardian before filling this in.
         </div>
         <Card className="p-5 space-y-3">
@@ -1813,8 +1858,8 @@ function StudentProfileForm({ data, refresh, student, onDone }) {
           <Btn onClick={save} disabled={saving} className="justify-center">
             {saving ? <Loader2 size={14} className="animate-spin" /> : null} Save my profile
           </Btn>
-          {savedOk && <span className="text-xs flex items-center gap-1" style={{ color: GREEN }}><CheckCircle2 size={13} />Saved — this will still be here next time you log in.</span>}
-          {saveError && <span className="text-xs flex items-center gap-1" style={{ color: "#b3432b" }}><AlertCircle size={13} />Couldn't save, please try again.</span>}
+          {savedOk && <span className="text-xs flex items-center gap-1" style={{ color: ACCENT }}><CheckCircle2 size={13} />Saved — this will still be here next time you log in.</span>}
+          {saveError && <span className="text-xs flex items-center gap-1" style={{ color: "#C0392B" }}><AlertCircle size={13} />Couldn't save, please try again.</span>}
         </div>
       </div>
     </div>
@@ -1833,11 +1878,11 @@ function StudentTimetable({ data, refresh, student }) {
     <div>
       <SectionTitle sub="Your confirmed lessons, plus any open slots you can reserve yourself.">My timetable</SectionTitle>
       <Card className="p-5 mb-5">
-        <h3 className="font-medium mb-3" style={{ fontFamily: "Georgia, serif" }}>Available to book</h3>
+        <h3 className="font-medium mb-3" style={{ fontFamily: HEAD }}>Available to book</h3>
         {openSlots.length === 0 ? <p className="text-xs" style={{ color: MUTED }}>No open slots right now.</p> : (
           <div className="grid gap-2">
             {openSlots.map((s) => (
-              <div key={s.id} className="flex items-center justify-between rounded-lg p-3" style={{ backgroundColor: "#eef6ee" }}>
+              <div key={s.id} className="flex items-center justify-between rounded-lg p-3" style={{ backgroundColor: "rgba(0,133,65,0.09)" }}>
                 <div className="text-sm">{s.date} · {s.time} <span style={{ color: MUTED }}>({s.duration} min) — {s.label}</span></div>
                 <Btn onClick={() => book(s.id)}>Book</Btn>
               </div>
@@ -1846,8 +1891,8 @@ function StudentTimetable({ data, refresh, student }) {
         )}
       </Card>
       <div className="grid md:grid-cols-2 gap-5">
-        <Card className="p-5"><h3 className="font-medium mb-3" style={{ fontFamily: "Georgia, serif" }}>Upcoming lessons</h3>{future.length === 0 ? <p className="text-xs" style={{ color: MUTED }}>Nothing scheduled yet.</p> : <div className="space-y-2">{future.map((s) => <div key={s.id} className="text-sm rounded-lg p-3" style={{ backgroundColor: CARD_BEIGE }}>{s.date} · {s.time} — {s.label}</div>)}</div>}</Card>
-        <Card className="p-5"><h3 className="font-medium mb-3" style={{ fontFamily: "Georgia, serif" }}>Past lessons</h3>{past.length === 0 ? <p className="text-xs" style={{ color: MUTED }}>No past lessons yet.</p> : <div className="space-y-2">{past.map((s) => <div key={s.id} className="text-sm rounded-lg p-3 opacity-70" style={{ backgroundColor: CARD_BEIGE }}>{s.date} · {s.time} — {s.label}</div>)}</div>}</Card>
+        <Card className="p-5"><h3 className="font-medium mb-3" style={{ fontFamily: HEAD }}>Upcoming lessons</h3>{future.length === 0 ? <p className="text-xs" style={{ color: MUTED }}>Nothing scheduled yet.</p> : <div className="space-y-2">{future.map((s) => <div key={s.id} className="text-sm rounded-lg p-3" style={{ backgroundColor: CARD_BEIGE }}>{s.date} · {s.time} — {s.label}</div>)}</div>}</Card>
+        <Card className="p-5"><h3 className="font-medium mb-3" style={{ fontFamily: HEAD }}>Past lessons</h3>{past.length === 0 ? <p className="text-xs" style={{ color: MUTED }}>No past lessons yet.</p> : <div className="space-y-2">{past.map((s) => <div key={s.id} className="text-sm rounded-lg p-3 opacity-70" style={{ backgroundColor: CARD_BEIGE }}>{s.date} · {s.time} — {s.label}</div>)}</div>}</Card>
       </div>
     </div>
   );
@@ -1904,9 +1949,10 @@ function StudentDocs({ data, refresh, student }) {
     return b;
   });
   const [loadingId, setLoadingId] = useState(null);
+  const [editing, setEditing] = useState({});
   const [errId, setErrId] = useState(null);
   const { queue: queueRaw, savedId, errId: draftErrId } = useDraftSaver((id, p) => db.saveHomeworkDraft(id, p));
-  const queueDraftSave = (hwId, nextDrafts, nextBlanks) => queueRaw(hwId, JSON.stringify({ extra: nextDrafts[hwId] || "", blanks: nextBlanks[hwId] || [] }));
+  const queueDraftSave = (hwId, nextDrafts, nextBlanks) => editing[hwId] ? null : queueRaw(hwId, JSON.stringify({ extra: nextDrafts[hwId] || "", blanks: nextBlanks[hwId] || [] }));
   const setBlank = (hwId, idx, val) => setBlankAnswers((prev) => {
     const arr = [...(prev[hwId] || [])];
     arr[idx] = val;
@@ -1919,6 +1965,13 @@ function StudentDocs({ data, refresh, student }) {
     queueDraftSave(hwId, next, blankAnswers);
     return next;
   });
+  const startEdit = (id, raw, submitted) => {
+    const p = parseDraft(raw);
+    setBlankAnswers((prev) => ({ ...prev, [id]: raw ? p.blanks : [] }));
+    setDrafts((prev) => ({ ...prev, [id]: raw ? p.extra : submitted }));
+    setEditing((prev) => ({ ...prev, [id]: true }));
+  };
+  const cancelEdit = (id) => setEditing((prev) => ({ ...prev, [id]: false }));
   const submit = async (hwId) => {
     const hw = doc.homework.find((h) => h.id === hwId);
     const blanks = countBlanks(hw.instructions);
@@ -1930,8 +1983,8 @@ function StudentDocs({ data, refresh, student }) {
     setLoadingId(hwId); setErrId(null);
     try {
       const feedback = await getAIFeedback({ instructions: hw.instructions, submissionText: text, level: student.level });
-      await db.submitHomework(hwId, text, feedback);
-      await db.saveHomeworkDraft(hwId, null);
+      await db.submitHomework(hwId, text, feedback, JSON.stringify({ extra: drafts[hwId] || "", blanks: blankAnswers[hwId] || [] }));
+      setEditing((prev) => ({ ...prev, [hwId]: false }));
       refresh();
     } catch (e) { setErrId(hwId); }
     setLoadingId(null);
@@ -1940,11 +1993,11 @@ function StudentDocs({ data, refresh, student }) {
     <div>
       <SectionTitle sub="Notes from your teacher after class, and homework with instant AI feedback.">My document</SectionTitle>
       <Card className="p-5 mb-5">
-        <h3 className="font-medium mb-3" style={{ fontFamily: "Georgia, serif" }}>Class notes</h3>
+        <h3 className="font-medium mb-3" style={{ fontFamily: HEAD }}>Class notes</h3>
         {doc.notes.length === 0 ? <p className="text-xs" style={{ color: MUTED }}>Your teacher hasn't added notes yet.</p> : <div className="space-y-2">{doc.notes.map((n) => { const first = (n.text || "").split("\n").find((l) => l.trim() && !/^!\[/.test(l.trim())) || ""; return <CollapsibleItem key={n.id} title={plainTitle(first).slice(0, 70) || "Lesson notes"} sub={n.date}><RichDoc text={n.text} /></CollapsibleItem>; })}</div>}
       </Card>
       <Card className="p-5">
-        <h3 className="font-medium mb-3" style={{ fontFamily: "Georgia, serif" }}>Homework</h3>
+        <h3 className="font-medium mb-3" style={{ fontFamily: HEAD }}>Homework</h3>
         {doc.homework.length === 0 ? <p className="text-xs" style={{ color: MUTED }}>No homework assigned.</p> : (
           <div className="space-y-4">
             {doc.homework.map((h) => {
@@ -1952,8 +2005,9 @@ function StudentDocs({ data, refresh, student }) {
               return (
               <CollapsibleItem key={h.id} title={h.title} sub={`${h.date} · ${h.status === "checked" ? "Checked" : "To do"}`}><div>
                                 {blanks === 0 && <p className="text-xs mt-1" style={{ color: MUTED }}>{h.instructions}</p>}
-                {h.status === "checked" ? (
-                  <><p className="text-xs mt-2 italic whitespace-pre-wrap">"{h.submissionText}"</p><Feedback text={h.aiFeedback} /></>
+                {h.status === "checked" && !editing[h.id] ? (
+                  <><p className="text-xs mt-2 italic whitespace-pre-wrap">"{h.submissionText}"</p><Feedback text={h.aiFeedback} />
+                  <div className="mt-2"><button onClick={() => startEdit(h.id, h.draftAnswer, h.submissionText)} className="text-xs underline" style={{ color: ACCENT }}>Edit my answer and get new feedback</button></div></>
                 ) : (
                   <>
                     {blanks > 0 && (
@@ -1964,10 +2018,11 @@ function StudentDocs({ data, refresh, student }) {
                     {blanks > 0 && <div className="text-[11px] mt-3 mb-1" style={{ color: MUTED }}>Anything else to add? (optional)</div>}
                     <Textarea className="mt-2" value={drafts[h.id] ?? ""} onChange={(e) => setDraftText(h.id, e.target.value)} placeholder={blanks > 0 ? "Translations, open questions, multiple choice, etc." : "Write your answer in Spanish..."} />
                     <div className="mt-2 flex items-center gap-2">
-                      <Btn onClick={() => submit(h.id)} disabled={loadingId === h.id}>{loadingId === h.id ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} Submit for AI feedback</Btn>
-                      {errId === h.id && <span className="text-xs flex items-center gap-1" style={{ color: "#b3432b" }}><AlertCircle size={13} />Couldn't get feedback, try again.</span>}
+                      <Btn onClick={() => submit(h.id)} disabled={loadingId === h.id}>{loadingId === h.id ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} {editing[h.id] ? "Resubmit for AI feedback" : "Submit for AI feedback"}</Btn>
+                      {editing[h.id] && <Btn variant="ghost" onClick={() => cancelEdit(h.id)}>Cancel</Btn>}
+                      {errId === h.id && <span className="text-xs flex items-center gap-1" style={{ color: "#C0392B" }}><AlertCircle size={13} />Couldn't get feedback, try again.</span>}
                       {savedId === h.id && <span className="text-xs flex items-center gap-1" style={{ color: MUTED }}><CheckCircle2 size={12} />Draft saved</span>}
-                      {draftErrId === h.id && <span className="text-xs flex items-center gap-1" style={{ color: "#b3432b" }}><AlertCircle size={13} />Draft NOT saved — copy your answer somewhere safe and tell your teacher.</span>}
+                      {draftErrId === h.id && <span className="text-xs flex items-center gap-1" style={{ color: "#C0392B" }}><AlertCircle size={13} />Draft NOT saved — copy your answer somewhere safe and tell your teacher.</span>}
                     </div>
                   </>
                 )}
@@ -2003,10 +2058,10 @@ function StudentResources({ data, student }) {
               <Card key={r.id} className="p-4">
                 <div className="flex items-center justify-between gap-3">
                   <button onClick={() => setExpanded(isOpen ? null : r.id)} className="flex items-center gap-3 flex-1 text-left">
-                    <Icon size={18} color={GREEN} />
+                    <Icon size={18} color={ACCENT} />
                     <div className="text-sm font-medium">{r.title}{r.level && <span className="text-xs font-normal ml-2 px-1.5 py-0.5 rounded" style={{ backgroundColor: CARD_BEIGE, color: MUTED }}>{r.level}</span>}</div>
                   </button>
-                  {r.url && <a href={r.url} target="_blank" rel="noreferrer" className="text-xs underline" style={{ color: GREEN }}>Open</a>}
+                  {r.url && <a href={r.url} target="_blank" rel="noreferrer" className="text-xs underline" style={{ color: ACCENT }}>Open</a>}
                 </div>
                 {isOpen && r.description && <div className="mt-3"><RichDoc text={r.description} /></div>}
               </Card>
@@ -2022,12 +2077,18 @@ function StudentFlashcards({ data }) {
   const [category, setCategory] = useState("word");
   const [i, setI] = useState(0);
   const [flip, setFlip] = useState(false);
+  const [reverse, setReverse] = useState(() => { try { return localStorage.getItem("ja-fc-reverse") === "1"; } catch (e) { return false; } });
+  const toggleDir = (rev) => { setReverse(rev); setFlip(false); try { localStorage.setItem("ja-fc-reverse", rev ? "1" : "0"); } catch (e) {} };
   const cards = data.flashcards.filter((f) => (f.category || "word") === category);
   const catMeta = FLASHCARD_CATEGORIES.find((c) => c.id === category);
   const card = cards[i % cards.length];
   return (
     <div>
       <SectionTitle sub="Tap the card to flip.">Flashcards</SectionTitle>
+      <div className="inline-flex rounded-full p-1 mb-4" style={{ backgroundColor: CARD_BEIGE, border: `1px solid ${BORDER}` }}>
+        <button onClick={() => toggleDir(false)} className="px-4 py-1.5 rounded-full text-sm font-medium" style={{ backgroundColor: !reverse ? GREEN : "transparent", color: !reverse ? "white" : INK }}>Español → English</button>
+        <button onClick={() => toggleDir(true)} className="px-4 py-1.5 rounded-full text-sm font-medium" style={{ backgroundColor: reverse ? GREEN : "transparent", color: reverse ? "white" : INK }}>English → Español</button>
+      </div>
       <div className="flex flex-wrap gap-2 mb-5">
         {FLASHCARD_CATEGORIES.map((c) => (
           <button key={c.id} onClick={() => { setCategory(c.id); setI(0); setFlip(false); }} className="px-3 py-1.5 rounded-full text-sm" style={{ backgroundColor: category === c.id ? GREEN : CARD_BEIGE, color: category === c.id ? "white" : INK }}>{c.label}</button>
@@ -2036,7 +2097,7 @@ function StudentFlashcards({ data }) {
       {cards.length === 0 ? <EmptyState text={`No ${catMeta.label.toLowerCase()} yet.`} /> : (
         <>
           <Card className="p-10 text-center cursor-pointer max-w-md" onClick={() => setFlip(!flip)}>
-            <div className="text-2xl mb-2" style={{ fontFamily: "Georgia, serif" }}>{flip ? card.translation : card.word}</div>
+            <div className="text-2xl mb-2" style={{ fontFamily: HEAD }}>{(flip !== reverse) ? card.translation : card.word}</div>
             {flip && card.example && <div className="text-sm mt-2 text-left"><RichDoc text={card.example} /></div>}
           </Card>
           <div className="flex gap-2 mt-4">
@@ -2061,7 +2122,7 @@ function StudentProgress({ data, student }) {
           const done = items.filter((it) => progress[it.id]).length;
           return (
             <Card key={lvl} className="p-5">
-              <div className="flex items-center justify-between mb-3"><h3 className="font-medium" style={{ fontFamily: "Georgia, serif" }}>{lvl}</h3><span className="text-xs" style={{ color: MUTED }}>{done}/{items.length}</span></div>
+              <div className="flex items-center justify-between mb-3"><h3 className="font-medium" style={{ fontFamily: HEAD }}>{lvl}</h3><span className="text-xs" style={{ color: MUTED }}>{done}/{items.length}</span></div>
               <div className="space-y-1.5">{items.map((it) => (<div key={it.id} className="flex items-center gap-2 text-sm">{progress[it.id] ? <CheckCircle2 size={16} color={GREEN} /> : <Circle size={16} color={MUTED} />}<span style={{ color: progress[it.id] ? INK : MUTED }}>{it.name}</span></div>))}</div>
             </Card>
           );
@@ -2085,8 +2146,9 @@ function StudentIntensive({ data, refresh, student }) {
     return b;
   });
   const [loadingId, setLoadingId] = useState(null);
+  const [editing, setEditing] = useState({});
   const { queue: queueRaw, savedId, errId: draftErrId } = useDraftSaver((id, p) => db.saveIntensiveDraft(id, p));
-  const queueDraftSave = (taskId, nextDrafts, nextBlanks) => queueRaw(taskId, JSON.stringify({ extra: nextDrafts[taskId] || "", blanks: nextBlanks[taskId] || [] }));
+  const queueDraftSave = (taskId, nextDrafts, nextBlanks) => editing[taskId] ? null : queueRaw(taskId, JSON.stringify({ extra: nextDrafts[taskId] || "", blanks: nextBlanks[taskId] || [] }));
   const setBlank = (taskId, idx, val) => setBlankAnswers((prev) => {
     const arr = [...(prev[taskId] || [])];
     arr[idx] = val;
@@ -2099,6 +2161,13 @@ function StudentIntensive({ data, refresh, student }) {
     queueDraftSave(taskId, next, blankAnswers);
     return next;
   });
+  const startEdit = (id, raw, submitted) => {
+    const p = parseDraft(raw);
+    setBlankAnswers((prev) => ({ ...prev, [id]: raw ? p.blanks : [] }));
+    setDrafts((prev) => ({ ...prev, [id]: raw ? p.extra : submitted }));
+    setEditing((prev) => ({ ...prev, [id]: true }));
+  };
+  const cancelEdit = (id) => setEditing((prev) => ({ ...prev, [id]: false }));
   const submit = async (taskId) => {
     const t = tasks.find((x) => x.id === taskId);
     const blanks = countBlanks(t.instructions);
@@ -2108,16 +2177,16 @@ function StudentIntensive({ data, refresh, student }) {
     const hasContent = blanks > 0 ? ((blankAnswers[taskId] || []).some((v) => (v || "").trim()) || extra) : extra;
     if (!hasContent) return;
     setLoadingId(taskId);
-    try { const feedback = await getAIFeedback({ instructions: t.instructions, submissionText: text, level: student.level }); await db.submitIntensiveTask(taskId, text, feedback); await db.saveIntensiveDraft(taskId, null); refresh(); } catch (e) {}
+    try { const feedback = await getAIFeedback({ instructions: t.instructions, submissionText: text, level: student.level }); await db.submitIntensiveTask(taskId, text, feedback, JSON.stringify({ extra: drafts[taskId] || "", blanks: blankAnswers[taskId] || [] })); setEditing((prev) => ({ ...prev, [taskId]: false })); refresh(); } catch (e) {}
     setLoadingId(null);
   };
   const markDone = async (taskId) => { await db.markIntensiveDone(taskId); await db.saveIntensiveDraft(taskId, null); refresh(); };
   return (
     <div>
       <SectionTitle sub={cohort ? `You're enrolled in ${cohort.name}.` : "Your tasks and work from the intensive course."}>Intensive classroom</SectionTitle>
-      <Card className="p-5 mb-5"><h3 className="font-medium mb-2" style={{ fontFamily: "Georgia, serif" }}>General class document</h3>{cohort?.generalDoc ? <CollapsibleDoc text={cohort.generalDoc} /> : <p className="text-sm" style={{ color: MUTED }}>Nothing posted yet.</p>}</Card>
+      <Card className="p-5 mb-5"><h3 className="font-medium mb-2" style={{ fontFamily: HEAD }}>General class document</h3>{cohort?.generalDoc ? <CollapsibleDoc text={cohort.generalDoc} /> : <p className="text-sm" style={{ color: MUTED }}>Nothing posted yet.</p>}</Card>
       <Card className="p-5">
-        <h3 className="font-medium mb-3" style={{ fontFamily: "Georgia, serif" }}>My tasks</h3>
+        <h3 className="font-medium mb-3" style={{ fontFamily: HEAD }}>My tasks</h3>
         {tasks.length === 0 ? <EmptyState text="No tasks assigned yet." /> : (
           <div className="space-y-4">
             {tasks.map((t) => {
@@ -2125,7 +2194,8 @@ function StudentIntensive({ data, refresh, student }) {
               return (
               <CollapsibleItem key={t.id} title={t.title} sub={t.status === "checked" ? "Checked" : t.status === "done" ? "Done" : "To do"}><div>
                                 {blanks === 0 && <p className="text-xs mt-1" style={{ color: MUTED }}>{t.instructions}</p>}
-                {t.status === "checked" ? (<><p className="text-xs mt-2 italic whitespace-pre-wrap">"{t.submissionText}"</p><Feedback text={t.aiFeedback} /></>) : (
+                {t.status === "checked" && !editing[t.id] ? (<><p className="text-xs mt-2 italic whitespace-pre-wrap">"{t.submissionText}"</p><Feedback text={t.aiFeedback} />
+                <div className="mt-2"><button onClick={() => startEdit(t.id, t.draftAnswer, t.submissionText)} className="text-xs underline" style={{ color: ACCENT }}>Edit my answer and get new feedback</button></div></>) : (
                   <>
                     {blanks > 0 && (
                       <div className="mt-2 rounded-lg p-3 bg-white">
@@ -2135,10 +2205,11 @@ function StudentIntensive({ data, refresh, student }) {
                     {blanks > 0 && <div className="text-[11px] mt-3 mb-1" style={{ color: MUTED }}>Anything else to add? (optional)</div>}
                     <Textarea className="mt-2" value={drafts[t.id] ?? ""} onChange={(e) => setDraftText(t.id, e.target.value)} placeholder={blanks > 0 ? "Translations, open questions, etc." : "Write your answer, or leave blank and just mark as done"} />
                     <div className="mt-2 flex items-center gap-2">
-                      <Btn onClick={() => submit(t.id)} disabled={loadingId === t.id}>{loadingId === t.id ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}Submit for AI feedback</Btn>
+                      <Btn onClick={() => submit(t.id)} disabled={loadingId === t.id}>{loadingId === t.id ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}{editing[t.id] ? "Resubmit for AI feedback" : "Submit for AI feedback"}</Btn>
+                      {editing[t.id] && <Btn variant="ghost" onClick={() => cancelEdit(t.id)}>Cancel</Btn>}
                       <Btn variant="ghost" onClick={() => markDone(t.id)}><CheckCircle2 size={14} />Mark done</Btn>
                       {savedId === t.id && <span className="text-xs flex items-center gap-1" style={{ color: MUTED }}><CheckCircle2 size={12} />Draft saved</span>}
-                {draftErrId === t.id && <span className="text-xs flex items-center gap-1" style={{ color: "#b3432b" }}><AlertCircle size={13} />Draft NOT saved — tell your teacher.</span>}
+                {draftErrId === t.id && <span className="text-xs flex items-center gap-1" style={{ color: "#C0392B" }}><AlertCircle size={13} />Draft NOT saved — tell your teacher.</span>}
                     </div>
                   </>
                 )}
@@ -2166,10 +2237,11 @@ function StudentCourses({ data, refresh, student }) {
     return b;
   });
   const [loadingId, setLoadingId] = useState(null);
+  const [editing, setEditing] = useState({});
   const { queue: queueRaw, savedId, errId: draftErrId } = useDraftSaver((id, p) => db.saveCourseDraft(id, student.id, p));
   const course = data.prerecordedCourses.find((c) => c.id === selected);
   const mySubs = course?.studentSubmissions?.[student.id] || {};
-  const queueDraftSave = (taskId, nextDrafts, nextBlanks) => queueRaw(taskId, JSON.stringify({ extra: nextDrafts[taskId] || "", blanks: nextBlanks[taskId] || [] }));
+  const queueDraftSave = (taskId, nextDrafts, nextBlanks) => editing[taskId] ? null : queueRaw(taskId, JSON.stringify({ extra: nextDrafts[taskId] || "", blanks: nextBlanks[taskId] || [] }));
   const setBlank = (taskId, idx, val) => setBlankAnswers((prev) => {
     const arr = [...(prev[taskId] || [])];
     arr[idx] = val;
@@ -2182,6 +2254,13 @@ function StudentCourses({ data, refresh, student }) {
     queueDraftSave(taskId, next, blankAnswers);
     return next;
   });
+  const startEdit = (id, raw, submitted) => {
+    const p = parseDraft(raw);
+    setBlankAnswers((prev) => ({ ...prev, [id]: raw ? p.blanks : [] }));
+    setDrafts((prev) => ({ ...prev, [id]: raw ? p.extra : submitted }));
+    setEditing((prev) => ({ ...prev, [id]: true }));
+  };
+  const cancelEdit = (id) => setEditing((prev) => ({ ...prev, [id]: false }));
   const submit = async (taskId) => {
     if (!course) return;
     const task = course.tasks.find((t) => t.id === taskId);
@@ -2192,7 +2271,7 @@ function StudentCourses({ data, refresh, student }) {
     const hasContent = blanks > 0 ? ((blankAnswers[taskId] || []).some((v) => (v || "").trim()) || extra) : extra;
     if (!hasContent) return;
     setLoadingId(taskId);
-    try { const feedback = await getAIFeedback({ instructions: task.instructions, submissionText: text, level: student.level }); await db.submitCourseTask(taskId, student.id, text, feedback); refresh(); } catch (e) {}
+    try { const feedback = await getAIFeedback({ instructions: task.instructions, submissionText: text, level: student.level }); await db.submitCourseTask(taskId, student.id, text, feedback, JSON.stringify({ extra: drafts[taskId] || "", blanks: blankAnswers[taskId] || [] })); setEditing((prev) => ({ ...prev, [taskId]: false })); refresh(); } catch (e) {}
     setLoadingId(null);
   };
   return (
@@ -2203,9 +2282,9 @@ function StudentCourses({ data, refresh, student }) {
           <div className="mb-5"><Select value={selected} onChange={(e) => setSelected(e.target.value)}>{data.prerecordedCourses.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}</Select></div>
           {course && (
             <>
-              <Card className="p-5 mb-5"><h3 className="font-medium mb-2" style={{ fontFamily: "Georgia, serif" }}>Theory</h3>{course.theoryDoc ? <RichDoc text={course.theoryDoc} /> : <p className="text-sm" style={{ color: MUTED }}>Coming soon.</p>}</Card>
+              <Card className="p-5 mb-5"><h3 className="font-medium mb-2" style={{ fontFamily: HEAD }}>Theory</h3>{course.theoryDoc ? <RichDoc text={course.theoryDoc} /> : <p className="text-sm" style={{ color: MUTED }}>Coming soon.</p>}</Card>
               <Card className="p-5">
-                <h3 className="font-medium mb-3" style={{ fontFamily: "Georgia, serif" }}>Tasks</h3>
+                <h3 className="font-medium mb-3" style={{ fontFamily: HEAD }}>Tasks</h3>
                 {course.tasks.length === 0 ? <EmptyState text="No tasks yet." /> : (
                   <div className="space-y-4">
                     {course.tasks.map((t) => {
@@ -2214,7 +2293,8 @@ function StudentCourses({ data, refresh, student }) {
                       return (
                         <CollapsibleItem key={t.id} title={t.title} sub={sub ? "Checked" : "To do"}><div>
                                                     {blanks === 0 && <p className="text-xs mt-1" style={{ color: MUTED }}>{t.instructions}</p>}
-                          {sub ? (<><p className="text-xs mt-2 italic whitespace-pre-wrap">"{sub.submissionText}"</p><Feedback text={sub.aiFeedback} /></>) : (
+                          {sub && !editing[t.id] ? (<><p className="text-xs mt-2 italic whitespace-pre-wrap">"{sub.submissionText}"</p><Feedback text={sub.aiFeedback} />
+                          <div className="mt-2"><button onClick={() => startEdit(t.id, myDrafts[t.id], sub.submissionText)} className="text-xs underline" style={{ color: ACCENT }}>Edit my answer and get new feedback</button></div></>) : (
                             <>
                               {blanks > 0 && (
                                 <div className="mt-2 rounded-lg p-3 bg-white">
@@ -2224,9 +2304,10 @@ function StudentCourses({ data, refresh, student }) {
                               {blanks > 0 && <div className="text-[11px] mt-3 mb-1" style={{ color: MUTED }}>Anything else to add? (optional)</div>}
                               <Textarea className="mt-2" value={drafts[t.id] ?? ""} onChange={(e) => setDraftText(t.id, e.target.value)} placeholder={blanks > 0 ? "Translations, open questions, etc." : "Your answer..."} />
                               <div className="mt-2 flex items-center gap-2">
-                                <Btn onClick={() => submit(t.id)} disabled={loadingId === t.id}>{loadingId === t.id ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}Submit for AI feedback</Btn>
+                                <Btn onClick={() => submit(t.id)} disabled={loadingId === t.id}>{loadingId === t.id ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}{editing[t.id] ? "Resubmit for AI feedback" : "Submit for AI feedback"}</Btn>
+                                {editing[t.id] && <Btn variant="ghost" onClick={() => cancelEdit(t.id)}>Cancel</Btn>}
                                 {savedId === t.id && <span className="text-xs flex items-center gap-1" style={{ color: MUTED }}><CheckCircle2 size={12} />Draft saved</span>}
-                {draftErrId === t.id && <span className="text-xs flex items-center gap-1" style={{ color: "#b3432b" }}><AlertCircle size={13} />Draft NOT saved — tell your teacher.</span>}
+                {draftErrId === t.id && <span className="text-xs flex items-center gap-1" style={{ color: "#C0392B" }}><AlertCircle size={13} />Draft NOT saved — tell your teacher.</span>}
                               </div>
                             </>
                           )}
@@ -2263,25 +2344,25 @@ function TeacherManageAccess({ data, refresh }) {
     <div>
       <SectionTitle sub="Only you (as admin) can bring new teachers onto the platform. No one can create a teacher account without a code you generate here.">Manage access</SectionTitle>
       <Card className="p-5 mb-5">
-        <h3 className="font-medium mb-2" style={{ fontFamily: "Georgia, serif" }}>Invite a new teacher</h3>
+        <h3 className="font-medium mb-2" style={{ fontFamily: HEAD }}>Invite a new teacher</h3>
         <p className="text-sm mb-3" style={{ color: MUTED }}>Generate a one-time code, then share it privately with the person joining (along with the site link). They'll enter it when creating their account, under "I'm the teacher" → "Create account."</p>
         <Btn onClick={create} disabled={creating}>{creating ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}Generate invite code</Btn>
-        {genError && <p className="text-xs mt-2" style={{ color: "#b3432b" }}>{genError}</p>}
+        {genError && <p className="text-xs mt-2" style={{ color: "#C0392B" }}>{genError}</p>}
         {newCode && (
-          <div className="mt-3 rounded-lg p-3" style={{ backgroundColor: "#eef6ee" }}>
+          <div className="mt-3 rounded-lg p-3" style={{ backgroundColor: "rgba(0,133,65,0.09)" }}>
             <div className="text-xs mb-1" style={{ color: MUTED }}>New code — copy and share it now:</div>
             <div className="font-mono text-lg" style={{ color: INK }}>{newCode}</div>
           </div>
         )}
       </Card>
       <Card className="p-5">
-        <h3 className="font-medium mb-3" style={{ fontFamily: "Georgia, serif" }}>Invite history</h3>
+        <h3 className="font-medium mb-3" style={{ fontFamily: HEAD }}>Invite history</h3>
         {data.teacherInvites.length === 0 ? <EmptyState text="No invites created yet." /> : (
           <div className="space-y-2">
             {data.teacherInvites.map((inv) => (
               <div key={inv.code} className="flex items-center justify-between text-sm rounded-lg p-3" style={{ backgroundColor: CARD_BEIGE }}>
                 <span className="font-mono">{inv.code}</span>
-                <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: inv.used ? "#dcefdc" : "white", color: inv.used ? "#204d2c" : MUTED }}>{inv.used ? "used" : "not used yet"}</span>
+                <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: inv.used ? "rgba(0,133,65,0.18)" : "white", color: inv.used ? "#204d2c" : MUTED }}>{inv.used ? "used" : "not used yet"}</span>
               </div>
             ))}
           </div>
@@ -2349,7 +2430,7 @@ function StudentWatchlist({ data, refresh, student }) {
                 <div className="text-sm font-medium">{w.title} <span className="text-xs font-normal" style={{ color: MUTED }}>· {w.type} · {w.level}</span></div>
                 {w.favoritePhrase && <div className="text-xs italic mt-1" style={{ color: MUTED }}>"{w.favoritePhrase}"</div>}
               </div>
-              <button onClick={() => remove(w.id)}><Trash2 size={14} color="#b3432b" /></button>
+              <button onClick={() => remove(w.id)}><Trash2 size={14} color="#C0392B" /></button>
             </Card>
           ))}
         </div>
