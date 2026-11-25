@@ -198,7 +198,7 @@ export async function fetchAll() {
       id: v.id, kind: v.kind, word: v.word, translation: v.translation || "", example: v.example || "",
       conjugation: v.conjugation || "", level: v.level || "", groupId: v.group_id || "",
     })),
-    lessonPacks: (lessonPackRows || []).map((l) => ({ id: l.id, studentId: l.student_id, lessons: l.lessons, note: l.note || "", startDate: l.start_date, createdAt: l.created_at })),
+    lessonPacks: (lessonPackRows || []).map((l) => ({ id: l.id, used: l.used || 0, studentId: l.student_id, lessons: l.lessons, note: l.note || "", startDate: l.start_date, createdAt: l.created_at })),
     studentProfiles,
     grammarGuides: (grammarGuides || []).map((g) => ({ id: g.id, title: g.title, content: g.content || "" })),
     watchlistEntries: (watchlistEntries || []).map((w) => ({ id: w.id, studentId: w.student_id, title: w.title, type: w.type, level: w.level, favoritePhrase: w.favorite_phrase || "" })),
@@ -576,11 +576,16 @@ export async function setMeetUrlForUpcoming(url, fromDate) {
   const { error } = await supabase.from("timetable_slots").update({ meet_url: (url || "").trim() || null }).gte("date", fromDate);
   if (error) throw error;
 }
-export async function addLessonPack(studentId, lessons, note, startDate) {
-  const { error } = await supabase.from("lesson_packs").insert({ student_id: studentId, lessons, note: note || null, start_date: startDate });
+export async function addLessonPack(studentId, lessons, note, startDate, used = 0) {
+  const { error } = await supabase.from("lesson_packs").insert({ student_id: studentId, lessons, note: note || null, start_date: startDate, used });
   if (error) throw error;
 }
 export async function deleteLessonPack(id) {
   const { error } = await supabase.from("lesson_packs").delete().eq("id", id);
   if (error) throw error;
+}
+export async function setLessonPackUsed(id, used) {
+  const { data, error } = await supabase.from("lesson_packs").update({ used }).eq("id", id).select("id");
+  if (error) throw error;
+  if (!data || data.length === 0) throw new Error("not saved");
 }

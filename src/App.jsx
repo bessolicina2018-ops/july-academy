@@ -708,14 +708,20 @@ function TeacherStudents({ data, refresh }) {
   const setGroup = async (studentId, groupId) => { await db.setStudentGroup(studentId, groupId); refresh(); };
   const [profileStudent, setProfileStudent] = useState(null);
   const [packStudent, setPackStudent] = useState(null);
-  const [packForm, setPackForm] = useState({ lessons: "8", note: "" });
+  const [packForm, setPackForm] = useState({ lessons: "8", used: "0", date: new Date().toISOString().slice(0, 10), note: "" });
   const [packErr, setPackErr] = useState("");
   const addPack = async () => {
     const n = Number(packForm.lessons);
     if (!n) return;
     setPackErr("");
-    try { await db.addLessonPack(packStudent.id, n, packForm.note, new Date().toISOString().slice(0, 10)); setPackForm({ lessons: "8", note: "" }); refresh(); }
+    try { await db.addLessonPack(packStudent.id, n, packForm.note, packForm.date || new Date().toISOString().slice(0, 10), Math.max(0, Math.min(n, Number(packForm.used) || 0))); setPackForm({ lessons: "8", used: "0", date: new Date().toISOString().slice(0, 10), note: "" }); refresh(); }
     catch (e) { setPackErr("Couldn't save. Run the database update (lesson_packs table) first."); }
+  };
+  const stepPack = async (l, d) => {
+    const next = Math.max(0, Math.min(Number(l.lessons) || 0, (Number(l.used) || 0) + d));
+    if (next === (Number(l.used) || 0)) return;
+    setPackErr("");
+    try { await db.setLessonPackUsed(l.id, next); refresh(); } catch (e) { setPackErr("Couldn't save. Run the database update (used column) first."); }
   };
   const delPack = async (id) => { if (!window.confirm("Remove this entry?")) return; try { await db.deleteLessonPack(id); refresh(); } catch (e) { setPackErr("Couldn't remove it."); } };
 
@@ -800,19 +806,31 @@ function TeacherStudents({ data, refresh }) {
           {b ? (
             <div className="mb-4 rounded-xl p-4" style={{ backgroundColor: "rgba(0,133,65,0.09)" }}>
               <div className="text-lg font-semibold" style={{ fontFamily: HEAD, color: INK }}>{b.left} of {b.total} lessons left</div>
-              <div className="text-xs" style={{ color: MUTED }}>{b.used} lessons already counted (past lessons in the timetable since the pack started).</div>
+              <div className="text-xs" style={{ color: MUTED }}>{b.used} taken so far. Use − / + below to update it after each lesson.</div>
             </div>
-          ) : <p className="text-xs mb-4" style={{ color: MUTED }}>No pack yet. Add the lessons this student paid for — the platform counts past lessons automatically.</p>}
+          ) : <p className="text-xs mb-4" style={{ color: MUTED }}>No pack yet. Add what the student paid for: how many lessons, how many are already taken, and the payment date.</p>}
+          <div className="text-xs font-medium mb-2" style={{ color: INK }}>New pack</div>
           <div className="grid grid-cols-3 gap-2">
-            <div><label className="text-xs" style={{ color: MUTED }}>Lessons</label><Input type="number" value={packForm.lessons} onChange={(e) => setPackForm({ ...packForm, lessons: e.target.value })} /></div>
-            <div className="col-span-2"><label className="text-xs" style={{ color: MUTED }}>Note (optional)</label><Input value={packForm.note} onChange={(e) => setPackForm({ ...packForm, note: e.target.value })} placeholder="e.g. 8-pack, 240€" /></div>
+            <div><label className="text-xs" style={{ color: MUTED }}>Lessons paid</label><Input type="number" value={packForm.lessons} onChange={(e) => setPackForm({ ...packForm, lessons: e.target.value })} /></div>
+            <div><label className="text-xs" style={{ color: MUTED }}>Already taken</label><Input type="number" value={packForm.used} onChange={(e) => setPackForm({ ...packForm, used: e.target.value })} /></div>
+            <div><label className="text-xs" style={{ color: MUTED }}>Paid on</label><Input type="date" value={packForm.date} onChange={(e) => setPackForm({ ...packForm, date: e.target.value })} /></div>
+            <div className="col-span-3"><label className="text-xs" style={{ color: MUTED }}>Note (optional)</label><Input value={packForm.note} onChange={(e) => setPackForm({ ...packForm, note: e.target.value })} placeholder="e.g. 8-pack, 240€" /></div>
           </div>
           {packErr && <p className="text-xs mt-2" style={{ color: "#C0392B" }}>{packErr}</p>}
           <div className="mt-3"><Btn onClick={addPack} className="w-full justify-center"><Plus size={14} />Add pack</Btn></div>
-          {b && <div className="mt-4 space-y-1">{b.packs.map((l) => (
-            <div key={l.id} className="flex items-center justify-between text-xs rounded-lg p-2" style={{ backgroundColor: CARD_BEIGE, color: INK }}>
-              <span>+{l.lessons} lessons · from {l.startDate}{l.note ? ` · ${l.note}` : ""}</span>
-              <button onClick={() => delPack(l.id)}><Trash2 size={13} color="#C0392B" /></button>
+          {b && <div className="mt-4 space-y-2">{b.packs.map((l) => (
+            <div key={l.id} className="rounded-lg p-3" style={{ backgroundColor: CARD_BEIGE, color: INK }}>
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-medium">Pack of {l.lessons} · paid {l.startDate || "—"}{l.note ? ` · ${l.note}` : ""}</span>
+                <button onClick={() => delPack(l.id)}><Trash2 size={13} color="#C0392B" /></button>
+              </div>
+              <div className="flex items-center justify-between mt-2">
+                <span className="text-sm">{Number(l.used) || 0} taken · {Math.max(0, (Number(l.lessons) || 0) - (Number(l.used) || 0))} left</span>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => stepPack(l, -1)} className="w-8 h-8 rounded-full bg-white text-lg leading-none" style={{ border: `1px solid ${BORDER}` }}>−</button>
+                  <button onClick={() => stepPack(l, 1)} className="px-3 h-8 rounded-full text-white text-xs font-medium" style={{ backgroundColor: ACCENT }}>+1 lesson taken</button>
+                </div>
+              </div>
             </div>
           ))}</div>}
         </Modal>
@@ -868,10 +886,8 @@ function slotStart(s) { return new Date(`${s.date}T${s.time || "00:00"}`); }
 function lessonBalance(data, student) {
   const packs = (data.lessonPacks || []).filter((l) => l.studentId === student.id);
   if (packs.length === 0) return null;
-  const since = packs.map((l) => l.startDate || "0000-00-00").sort()[0];
   const total = packs.reduce((n, l) => n + (Number(l.lessons) || 0), 0);
-  const now = new Date();
-  const used = slotsForStudent(data, student).filter((s) => s.date >= since && slotStart(s) < now).length;
+  const used = packs.reduce((n, l) => n + (Number(l.used) || 0), 0);
   return { total, used, left: Math.max(0, total - used), packs };
 }
 function isLessonSoon(s) {
@@ -1984,7 +2000,7 @@ function StudentTimetable({ data, refresh, student }) {
           </div>
           <div>
             <div className="font-medium" style={{ fontFamily: HEAD, color: INK }}>{balance.left} of {balance.total} lessons left</div>
-            <div className="text-xs mt-1" style={{ color: MUTED }}>{balance.used} completed so far{balance.left === 0 ? " — message your teacher to renew your pack." : ""}</div>
+            <div className="text-xs mt-1" style={{ color: MUTED }}>{balance.used} taken so far{balance.left === 0 ? " — message your teacher to renew your pack." : ""}</div>
           </div>
         </Card>
       )}
