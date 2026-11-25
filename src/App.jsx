@@ -705,6 +705,17 @@ function TeacherStudents({ data, refresh }) {
   const setIntensive = async (studentId, groupId) => { await db.setIntensiveGroup(studentId, groupId); refresh(); };
   const setGroup = async (studentId, groupId) => { await db.setStudentGroup(studentId, groupId); refresh(); };
   const [profileStudent, setProfileStudent] = useState(null);
+  const [packStudent, setPackStudent] = useState(null);
+  const [packForm, setPackForm] = useState({ lessons: "8", note: "" });
+  const [packErr, setPackErr] = useState("");
+  const addPack = async () => {
+    const n = Number(packForm.lessons);
+    if (!n) return;
+    setPackErr("");
+    try { await db.addLessonPack(packStudent.id, n, packForm.note, new Date().toISOString().slice(0, 10)); setPackForm({ lessons: "8", note: "" }); refresh(); }
+    catch (e) { setPackErr("Couldn't save. Run the database update (lesson_packs table) first."); }
+  };
+  const delPack = async (id) => { if (!window.confirm("Remove this entry?")) return; try { await db.deleteLessonPack(id); refresh(); } catch (e) { setPackErr("Couldn't remove it."); } };
 
   return (
     <div>
@@ -735,6 +746,7 @@ function TeacherStudents({ data, refresh }) {
                   <div className="text-xs mt-1" style={{ color: MUTED }}>Login code: <span className="font-mono px-2 py-0.5 rounded" style={{ backgroundColor: CARD_BEIGE }}>{s.code}</span>{s.profileId && <span className="ml-2" style={{ color: ACCENT }}>· linked</span>}{s.lastLoginAt && <span className="ml-2">· last active {new Date(s.lastLoginAt).toLocaleDateString()}</span>}</div>
                 </div>
                 <div className="flex items-center gap-3 flex-wrap">
+                  {(() => { const b = lessonBalance(data, s); return <button onClick={() => setPackStudent(s)} className="text-xs px-2 py-1 rounded-full" style={{ backgroundColor: b ? (b.left <= 1 ? "rgba(192,57,43,0.12)" : "rgba(0,133,65,0.09)") : CARD_BEIGE, color: b ? (b.left <= 1 ? "#C0392B" : GREEN) : MUTED }}>{b ? `${b.left} / ${b.total} lessons` : "Lessons"}</button>; })()}
                   <button onClick={() => setProfileStudent(s)} className="text-xs px-2 py-1 rounded-full" style={{ backgroundColor: data.studentProfiles[s.id]?.completedAt ? "rgba(0,133,65,0.09)" : CARD_BEIGE, color: data.studentProfiles[s.id]?.completedAt ? GREEN : MUTED }}>Profile</button>
                   <label className="flex items-center gap-1.5 text-xs" style={{ color: MUTED }}>
                     Group:
@@ -781,6 +793,28 @@ function TeacherStudents({ data, refresh }) {
           </div>
         </Modal>
       )}
+      {packStudent && (() => { const st = data.students.find((x) => x.id === packStudent.id) || packStudent; const b = lessonBalance(data, st); return (
+        <Modal title={`${st.name} — lessons`} onClose={() => setPackStudent(null)}>
+          {b ? (
+            <div className="mb-4 rounded-xl p-4" style={{ backgroundColor: "rgba(0,133,65,0.09)" }}>
+              <div className="text-lg font-semibold" style={{ fontFamily: HEAD, color: INK }}>{b.left} of {b.total} lessons left</div>
+              <div className="text-xs" style={{ color: MUTED }}>{b.used} lessons already counted (past lessons in the timetable since the pack started).</div>
+            </div>
+          ) : <p className="text-xs mb-4" style={{ color: MUTED }}>No pack yet. Add the lessons this student paid for — the platform counts past lessons automatically.</p>}
+          <div className="grid grid-cols-3 gap-2">
+            <div><label className="text-xs" style={{ color: MUTED }}>Lessons</label><Input type="number" value={packForm.lessons} onChange={(e) => setPackForm({ ...packForm, lessons: e.target.value })} /></div>
+            <div className="col-span-2"><label className="text-xs" style={{ color: MUTED }}>Note (optional)</label><Input value={packForm.note} onChange={(e) => setPackForm({ ...packForm, note: e.target.value })} placeholder="e.g. 8-pack, 240€" /></div>
+          </div>
+          {packErr && <p className="text-xs mt-2" style={{ color: "#C0392B" }}>{packErr}</p>}
+          <div className="mt-3"><Btn onClick={addPack} className="w-full justify-center"><Plus size={14} />Add pack</Btn></div>
+          {b && <div className="mt-4 space-y-1">{b.packs.map((l) => (
+            <div key={l.id} className="flex items-center justify-between text-xs rounded-lg p-2" style={{ backgroundColor: CARD_BEIGE, color: INK }}>
+              <span>+{l.lessons} lessons · from {l.startDate}{l.note ? ` · ${l.note}` : ""}</span>
+              <button onClick={() => delPack(l.id)}><Trash2 size={13} color="#C0392B" /></button>
+            </div>
+          ))}</div>}
+        </Modal>
+      ); })()}
       {profileStudent && (
         <Modal title={`${profileStudent.name}'s profile`} onClose={() => setProfileStudent(null)} wide>
           <StudentProfileSummary profile={data.studentProfiles[profileStudent.id]} student={profileStudent} />
@@ -819,20 +853,59 @@ function StudentProfileSummary({ profile, student }) {
   );
 }
 
+/* ---------------- Lessons: which slots belong to a student + pack balance ---------------- */
+function slotsForStudent(data, student) {
+  return data.timetableSlots.filter((s) =>
+    s.audience === `student:${student.id}` ||
+    (s.audience === "open" && s.bookedBy === student.id) ||
+    (student.groupId && s.audience === `group:${student.groupId}`) ||
+    (student.intensiveGroupId && s.audience === `group:${student.intensiveGroupId}`)
+  );
+}
+function slotStart(s) { return new Date(`${s.date}T${s.time || "00:00"}`); }
+function lessonBalance(data, student) {
+  const packs = (data.lessonPacks || []).filter((l) => l.studentId === student.id);
+  if (packs.length === 0) return null;
+  const since = packs.map((l) => l.startDate || "0000-00-00").sort()[0];
+  const total = packs.reduce((n, l) => n + (Number(l.lessons) || 0), 0);
+  const now = new Date();
+  const used = slotsForStudent(data, student).filter((s) => s.date >= since && slotStart(s) < now).length;
+  return { total, used, left: Math.max(0, total - used), packs };
+}
+function isLessonSoon(s) {
+  const start = slotStart(s).getTime(), now = Date.now();
+  return now >= start - 15 * 60000 && now <= start + (Number(s.duration) || 60) * 60000;
+}
+
 function TeacherTimetable({ data, refresh }) {
   const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ date: "", time: "", duration: "60", label: "", audienceType: "open", groupId: "", studentId: "", repeatWeeks: "1" });
+  const [form, setForm] = useState({ date: "", time: "", duration: "60", label: "", audienceType: "open", groupId: "", studentId: "", repeatWeeks: "1", meetUrl: (() => { try { return localStorage.getItem("ja-meet") || ""; } catch (e) { return ""; } })() });
+  const [linkSlot, setLinkSlot] = useState(null);
+  const [linkDraft, setLinkDraft] = useState("");
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [slotErr, setSlotErr] = useState("");
   const addSlot = async () => {
     if (!form.date || !form.time) return;
     const weeks = Math.max(1, Number(form.repeatWeeks) || 1);
-    if (weeks > 1) {
-      await db.addRepeatingSlots({ ...form, duration: Number(form.duration) }, weeks);
-    } else {
-      await db.addSlot({ ...form, duration: Number(form.duration) });
-    }
-    setForm({ date: "", time: "", duration: "60", label: "", audienceType: "open", groupId: "", studentId: "", repeatWeeks: "1" });
+    setSlotErr("");
+    try {
+      if (weeks > 1) {
+        await db.addRepeatingSlots({ ...form, duration: Number(form.duration) }, weeks);
+      } else {
+        await db.addSlot({ ...form, duration: Number(form.duration) });
+      }
+    } catch (e) { setSlotErr("Couldn't save the slot. If you added a Meet link, make sure the database update (meet_url column) was run."); return; }
+    try { if (form.meetUrl) localStorage.setItem("ja-meet", form.meetUrl.trim()); } catch (e) {}
+    setForm({ ...form, date: "", time: "", label: "", audienceType: "open", groupId: "", studentId: "", repeatWeeks: "1" });
     setShowAdd(false);
     refresh();
+  };
+  const saveSlotLink = async () => {
+    try { await db.setSlotMeetUrl(linkSlot.id, linkDraft); setLinkSlot(null); refresh(); } catch (e) { setSlotErr("Couldn't save the link. Run the database update (meet_url column) first."); }
+  };
+  const saveBulkLink = async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    try { await db.setMeetUrlForUpcoming(linkDraft, today); try { localStorage.setItem("ja-meet", linkDraft.trim()); } catch (e) {} setBulkOpen(false); refresh(); } catch (e) { setSlotErr("Couldn't save the link. Run the database update (meet_url column) first."); }
   };
   const removeSlot = async (id) => { await db.removeSlot(id); refresh(); };
   const sorted = [...data.timetableSlots].sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
@@ -847,8 +920,12 @@ function TeacherTimetable({ data, refresh }) {
     <div>
       <div className="flex items-center justify-between">
         <SectionTitle sub="Add fixed group or individual lessons, or open slots students can book themselves.">Timetable</SectionTitle>
-        <Btn onClick={() => setShowAdd(true)}><Plus size={14} /> Add slot</Btn>
+        <div className="flex gap-2 flex-wrap">
+          <Btn variant="ghost" onClick={() => { setLinkDraft((() => { try { return localStorage.getItem("ja-meet") || ""; } catch (e) { return ""; } })()); setBulkOpen(true); }}><Video size={14} /> Meet link for all upcoming</Btn>
+          <Btn onClick={() => setShowAdd(true)}><Plus size={14} /> Add slot</Btn>
+        </div>
       </div>
+      {slotErr && <p className="text-xs mb-3 flex items-center gap-1" style={{ color: "#C0392B" }}><AlertCircle size={13} />{slotErr}</p>}
       {sorted.length === 0 ? <EmptyState text="No timetable slots yet." /> : (
         <div className="grid gap-2">
           {sorted.map((slot) => (
@@ -863,7 +940,10 @@ function TeacherTimetable({ data, refresh }) {
                   <div className="text-xs" style={{ color: MUTED }}>{describeAudience(slot)} · {slot.duration} min</div>
                 </div>
               </div>
-              <button onClick={() => removeSlot(slot.id)}><Trash2 size={15} color="#C0392B" /></button>
+              <div className="flex items-center gap-3">
+                <button onClick={() => { setLinkSlot(slot); setLinkDraft(slot.meetUrl || ""); }} className="text-xs px-2 py-1 rounded-full flex items-center gap-1" style={{ backgroundColor: slot.meetUrl ? "rgba(0,133,65,0.09)" : CARD_BEIGE, color: slot.meetUrl ? GREEN : MUTED }}><Video size={12} />{slot.meetUrl ? "Meet ✓" : "Add Meet link"}</button>
+                <button onClick={() => removeSlot(slot.id)}><Trash2 size={15} color="#C0392B" /></button>
+              </div>
             </Card>
           ))}
         </div>
@@ -891,6 +971,7 @@ function TeacherTimetable({ data, refresh }) {
             {form.audienceType === "individual-fixed" && (
               <div><label className="text-xs" style={{ color: MUTED }}>Student</label><Select value={form.studentId} onChange={(e) => setForm({ ...form, studentId: e.target.value })}><option value="">Select student</option>{data.students.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</Select></div>
             )}
+            <div><label className="text-xs" style={{ color: MUTED }}>Google Meet link (optional — students get a Join button)</label><Input value={form.meetUrl} onChange={(e) => setForm({ ...form, meetUrl: e.target.value })} placeholder="https://meet.google.com/..." /></div>
             <div>
               <label className="text-xs" style={{ color: MUTED }}>Repeat weekly for how many weeks?</label>
               <Input type="number" min="1" max="52" value={form.repeatWeeks} onChange={(e) => setForm({ ...form, repeatWeeks: e.target.value })} />
@@ -898,6 +979,19 @@ function TeacherTimetable({ data, refresh }) {
             </div>
             <Btn onClick={addSlot} className="w-full justify-center">Add to timetable</Btn>
           </div>
+        </Modal>
+      )}
+      {linkSlot && (
+        <Modal title="Meet link for this lesson" onClose={() => setLinkSlot(null)}>
+          <Input value={linkDraft} onChange={(e) => setLinkDraft(e.target.value)} placeholder="https://meet.google.com/..." />
+          <div className="mt-3"><Btn onClick={saveSlotLink} className="w-full justify-center">Save link</Btn></div>
+        </Modal>
+      )}
+      {bulkOpen && (
+        <Modal title="Meet link for all upcoming slots" onClose={() => setBulkOpen(false)}>
+          <p className="text-xs mb-3" style={{ color: MUTED }}>Sets the same link on every slot from today onwards (past lessons are not changed). Handy if you always use one permanent Meet link.</p>
+          <Input value={linkDraft} onChange={(e) => setLinkDraft(e.target.value)} placeholder="https://meet.google.com/..." />
+          <div className="mt-3"><Btn onClick={saveBulkLink} className="w-full justify-center">Apply to all upcoming</Btn></div>
         </Modal>
       )}
     </div>
@@ -1869,7 +1963,8 @@ function StudentProfileForm({ data, refresh, student, onDone }) {
 function StudentTimetable({ data, refresh, student }) {
   const now = new Date();
   const nowKey = now.toISOString().slice(0, 10) + now.toTimeString().slice(0, 5);
-  const mine = data.timetableSlots.filter((s) => s.audience === `student:${student.id}` || (student.groupId && s.audience === `group:${student.groupId}`) || (student.intensiveGroupId && s.audience === `group:${student.intensiveGroupId}`)).sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+  const mine = slotsForStudent(data, student).sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+  const balance = lessonBalance(data, student);
   const past = mine.filter((s) => s.date + s.time < nowKey);
   const future = mine.filter((s) => s.date + s.time >= nowKey);
   const openSlots = data.timetableSlots.filter((s) => s.audience === "open" && s.status === "available").sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
@@ -1877,6 +1972,20 @@ function StudentTimetable({ data, refresh, student }) {
   return (
     <div>
       <SectionTitle sub="Your confirmed lessons, plus any open slots you can reserve yourself.">My timetable</SectionTitle>
+      {balance && (
+        <Card className="p-5 mb-5 flex items-center gap-5 flex-wrap">
+          <div className="rounded-full flex items-center justify-center shrink-0" style={{ width: 84, height: 84, background: `conic-gradient(${GREEN} ${Math.round((balance.left / Math.max(1, balance.total)) * 100)}%, ${BORDER} 0)` }}>
+            <div className="rounded-full flex flex-col items-center justify-center bg-white" style={{ width: 66, height: 66 }}>
+              <span className="text-xl font-bold leading-none" style={{ fontFamily: HEAD, color: INK }}>{balance.left}</span>
+              <span className="text-[10px]" style={{ color: MUTED }}>left</span>
+            </div>
+          </div>
+          <div>
+            <div className="font-medium" style={{ fontFamily: HEAD, color: INK }}>{balance.left} of {balance.total} lessons left</div>
+            <div className="text-xs mt-1" style={{ color: MUTED }}>{balance.used} completed so far{balance.left === 0 ? " — message your teacher to renew your pack." : ""}</div>
+          </div>
+        </Card>
+      )}
       <Card className="p-5 mb-5">
         <h3 className="font-medium mb-3" style={{ fontFamily: HEAD }}>Available to book</h3>
         {openSlots.length === 0 ? <p className="text-xs" style={{ color: MUTED }}>No open slots right now.</p> : (
@@ -1891,7 +2000,12 @@ function StudentTimetable({ data, refresh, student }) {
         )}
       </Card>
       <div className="grid md:grid-cols-2 gap-5">
-        <Card className="p-5"><h3 className="font-medium mb-3" style={{ fontFamily: HEAD }}>Upcoming lessons</h3>{future.length === 0 ? <p className="text-xs" style={{ color: MUTED }}>Nothing scheduled yet.</p> : <div className="space-y-2">{future.map((s) => <div key={s.id} className="text-sm rounded-lg p-3" style={{ backgroundColor: CARD_BEIGE }}>{s.date} · {s.time} — {s.label}</div>)}</div>}</Card>
+        <Card className="p-5"><h3 className="font-medium mb-3" style={{ fontFamily: HEAD }}>Upcoming lessons</h3>{future.length === 0 ? <p className="text-xs" style={{ color: MUTED }}>Nothing scheduled yet.</p> : <div className="space-y-2">{future.map((s) => (
+          <div key={s.id} className="text-sm rounded-lg p-3 flex items-center justify-between gap-3 flex-wrap" style={{ backgroundColor: CARD_BEIGE }}>
+            <span>{s.date} · {s.time} — {s.label}</span>
+            {s.meetUrl ? <a href={s.meetUrl} target="_blank" rel="noreferrer" className={"ja-btn inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-medium " + (isLessonSoon(s) ? "animate-pulse" : "")} style={{ backgroundImage: "linear-gradient(135deg,#19c26b,#008541)", color: "white" }}><Video size={13} />{isLessonSoon(s) ? "Join now" : "Join"}</a> : <span className="text-[11px]" style={{ color: MUTED }}>Link coming soon</span>}
+          </div>
+        ))}</div>}</Card>
         <Card className="p-5"><h3 className="font-medium mb-3" style={{ fontFamily: HEAD }}>Past lessons</h3>{past.length === 0 ? <p className="text-xs" style={{ color: MUTED }}>No past lessons yet.</p> : <div className="space-y-2">{past.map((s) => <div key={s.id} className="text-sm rounded-lg p-3 opacity-70" style={{ backgroundColor: CARD_BEIGE }}>{s.date} · {s.time} — {s.label}</div>)}</div>}</Card>
       </div>
     </div>

@@ -27,6 +27,7 @@ export async function fetchAll() {
     { data: teacherInvites },
     { data: watchlistEntries },
     { data: vocabRows },
+    { data: lessonPackRows },
   ] = await Promise.all([
     supabase.from("students").select("*"),
     supabase.from("groups").select("*"),
@@ -48,6 +49,7 @@ export async function fetchAll() {
     supabase.from("teacher_invites").select("*").order("created_at", { ascending: false }),
     supabase.from("watchlist_entries").select("*").order("created_at", { ascending: false }),
     supabase.from("vocab_entries").select("*").order("word"),
+    supabase.from("lesson_packs").select("*").order("created_at"),
   ]);
 
   const curriculum = { A1: [], A2: [], B1: [], B2: [] };
@@ -170,6 +172,7 @@ export async function fetchAll() {
           : "open",
       status: s.status,
       bookedBy: s.booked_by,
+      meetUrl: s.meet_url || "",
     })),
     resources: resources || [],
     flashcards: (flashcards || []).map((f) => ({
@@ -195,6 +198,7 @@ export async function fetchAll() {
       id: v.id, kind: v.kind, word: v.word, translation: v.translation || "", example: v.example || "",
       conjugation: v.conjugation || "", level: v.level || "", groupId: v.group_id || "",
     })),
+    lessonPacks: (lessonPackRows || []).map((l) => ({ id: l.id, studentId: l.student_id, lessons: l.lessons, note: l.note || "", startDate: l.start_date, createdAt: l.created_at })),
     studentProfiles,
     grammarGuides: (grammarGuides || []).map((g) => ({ id: g.id, title: g.title, content: g.content || "" })),
     watchlistEntries: (watchlistEntries || []).map((w) => ({ id: w.id, studentId: w.student_id, title: w.title, type: w.type, level: w.level, favoritePhrase: w.favorite_phrase || "" })),
@@ -226,7 +230,7 @@ export async function removeGroup(id) {
   await supabase.from("groups").delete().eq("id", id);
 }
 
-function buildSlotRow({ date, time, duration, label, audienceType, groupId, studentId }) {
+function buildSlotRow({ date, time, duration, label, audienceType, groupId, studentId, meetUrl }) {
   const row = {
     date,
     time,
@@ -235,6 +239,7 @@ function buildSlotRow({ date, time, duration, label, audienceType, groupId, stud
     audience_type: audienceType === "individual-fixed" ? "student" : audienceType,
     status: "available",
   };
+  if (meetUrl && meetUrl.trim()) row.meet_url = meetUrl.trim();
   if (audienceType === "group") {
     row.group_id = groupId;
     row.status = "booked";
@@ -247,7 +252,8 @@ function buildSlotRow({ date, time, duration, label, audienceType, groupId, stud
   return row;
 }
 export async function addSlot(fields) {
-  await supabase.from("timetable_slots").insert(buildSlotRow(fields));
+  const { error } = await supabase.from("timetable_slots").insert(buildSlotRow(fields));
+  if (error) throw error;
 }
 export async function addRepeatingSlots(fields, weeks) {
   const rows = [];
@@ -257,7 +263,8 @@ export async function addRepeatingSlots(fields, weeks) {
     const dateStr = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
     rows.push(buildSlotRow({ ...fields, date: dateStr }));
   }
-  await supabase.from("timetable_slots").insert(rows);
+  const { error } = await supabase.from("timetable_slots").insert(rows);
+  if (error) throw error;
 }
 export async function removeSlot(id) {
   await supabase.from("timetable_slots").delete().eq("id", id);
@@ -383,11 +390,12 @@ export async function updateHomeworkInstructions(id, instructions) {
 export async function deleteHomework(id) {
   await supabase.from("homework").delete().eq("id", id);
 }
-export async function submitHomework(id, submissionText, aiFeedback) {
-  await supabase
+export async function submitHomework(id, submissionText, aiFeedback, draftAnswer) {
+  const { error } = await supabase
     .from("homework")
-    .update({ submission_text: submissionText, ai_feedback: aiFeedback, status: "checked" })
+    .update({ submission_text: submissionText, ai_feedback: aiFeedback, status: "checked", ...(draftAnswer !== undefined ? { draft_answer: draftAnswer } : {}) })
     .eq("id", id);
+  if (error) throw error;
 }
 
 export async function saveIntensiveDoc(groupId, content) {
@@ -402,11 +410,12 @@ export async function updateIntensiveTaskInstructions(id, title, instructions) {
 export async function deleteIntensiveTask(id) {
   await supabase.from("intensive_tasks").delete().eq("id", id);
 }
-export async function submitIntensiveTask(id, submissionText, aiFeedback) {
-  await supabase
+export async function submitIntensiveTask(id, submissionText, aiFeedback, draftAnswer) {
+  const { error } = await supabase
     .from("intensive_tasks")
-    .update({ submission_text: submissionText, ai_feedback: aiFeedback, status: "checked" })
+    .update({ submission_text: submissionText, ai_feedback: aiFeedback, status: "checked", ...(draftAnswer !== undefined ? { draft_answer: draftAnswer } : {}) })
     .eq("id", id);
+  if (error) throw error;
 }
 export async function markIntensiveDone(id) {
   await supabase.from("intensive_tasks").update({ status: "done" }).eq("id", id);
@@ -422,17 +431,18 @@ export async function saveCourseTheory(id, theoryDoc) {
 export async function addCourseTask(courseId, title, instructions) {
   await supabase.from("course_tasks").insert({ course_id: courseId, title, instructions });
 }
-export async function submitCourseTask(taskId, studentId, submissionText, aiFeedback) {
-  await supabase.from("course_submissions").upsert(
-    { task_id: taskId, student_id: studentId, submission_text: submissionText, ai_feedback: aiFeedback, status: "checked" },
+export async function submitCourseTask(taskId, studentId, submissionText, aiFeedback, draftAnswer) {
+  const { error } = await supabase.from("course_submissions").upsert(
+    { task_id: taskId, student_id: studentId, submission_text: submissionText, ai_feedback: aiFeedback, status: "checked", ...(draftAnswer !== undefined ? { draft_answer: draftAnswer } : {}) },
     { onConflict: "task_id,student_id" }
   );
+  if (error) throw error;
 }
 
 export async function saveStudentProfile(studentId, fields) {
   const { email, whatsapp, ...profileFields } = fields;
-  const { error: e1 } = await supabase.from("students").update({ email: email || null, whatsapp: whatsapp || null }).eq("id", studentId);
-  const { error: e2 } = await supabase.from("student_profiles").upsert(
+  const { data: s, error: e1 } = await supabase.from("students").update({ email: email || null, whatsapp: whatsapp || null }).eq("id", studentId).select("id");
+  const { data: p, error: e2 } = await supabase.from("student_profiles").upsert(
     {
       student_id: studentId,
       native_language: profileFields.nativeLanguage || null,
@@ -447,10 +457,11 @@ export async function saveStudentProfile(studentId, fields) {
       completed_at: new Date().toISOString(),
     },
     { onConflict: "student_id" }
-  );
-  // Surface any failure instead of silently pretending it saved — this is
-  // exactly the kind of bug that made profile answers look "lost".
+  ).select("student_id");
+  // Surface any failure (including silent "0 rows changed" permission blocks)
   if (e1 || e2) throw e1 || e2;
+  if (!p || p.length === 0) throw new Error("profile not saved (no permission)");
+  if (!s || s.length === 0) console.warn("student contact details not updated");
 }
 
 /* ---------------------------------------------------------------- */
@@ -458,12 +469,14 @@ export async function saveStudentProfile(studentId, fields) {
 /* answers survive a logout or a closed tab before final submission.  */
 /* ---------------------------------------------------------------- */
 export async function saveHomeworkDraft(id, draftAnswer) {
-  const { error } = await supabase.from("homework").update({ draft_answer: draftAnswer }).eq("id", id);
+  const { data, error } = await supabase.from("homework").update({ draft_answer: draftAnswer }).eq("id", id).select("id");
   if (error) throw error;
+  if (!data || data.length === 0) throw new Error("not saved (no permission)");
 }
 export async function saveIntensiveDraft(id, draftAnswer) {
-  const { error } = await supabase.from("intensive_tasks").update({ draft_answer: draftAnswer }).eq("id", id);
+  const { data, error } = await supabase.from("intensive_tasks").update({ draft_answer: draftAnswer }).eq("id", id).select("id");
   if (error) throw error;
+  if (!data || data.length === 0) throw new Error("not saved (no permission)");
 }
 export async function saveCourseDraft(taskId, studentId, draftAnswer) {
   const { error } = await supabase.from("course_submissions").upsert(
@@ -551,4 +564,23 @@ export async function updateVocab(id, v) {
 }
 export async function removeVocab(id) {
   await supabase.from("vocab_entries").delete().eq("id", id);
+}
+
+/* ---- Meet links and lesson packs ---- */
+export async function setSlotMeetUrl(id, url) {
+  const { data, error } = await supabase.from("timetable_slots").update({ meet_url: (url || "").trim() || null }).eq("id", id).select("id");
+  if (error) throw error;
+  if (!data || data.length === 0) throw new Error("Not saved");
+}
+export async function setMeetUrlForUpcoming(url, fromDate) {
+  const { error } = await supabase.from("timetable_slots").update({ meet_url: (url || "").trim() || null }).gte("date", fromDate);
+  if (error) throw error;
+}
+export async function addLessonPack(studentId, lessons, note, startDate) {
+  const { error } = await supabase.from("lesson_packs").insert({ student_id: studentId, lessons, note: note || null, start_date: startDate });
+  if (error) throw error;
+}
+export async function deleteLessonPack(id) {
+  const { error } = await supabase.from("lesson_packs").delete().eq("id", id);
+  if (error) throw error;
 }
