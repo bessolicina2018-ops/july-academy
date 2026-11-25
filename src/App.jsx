@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import {
   Calendar, FileText, Headphones, Layers, GraduationCap, Video, CheckCircle2,
   Circle, Plus, X, Send, Loader2, Users, LogOut, ChevronRight, Sparkles,
@@ -463,8 +464,8 @@ function Feedback({ text }) {
   );
 }
 function Modal({ title, onClose, children, wide }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: "rgba(8,40,22,0.45)", backdropFilter: "blur(6px)" }} onClick={onClose}>
+  return createPortal(
+    <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: 1000, backgroundColor: "rgba(8,40,22,0.45)", backdropFilter: "blur(6px)" }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className={"ja-modal rounded-3xl w-full " + (wide ? "max-w-2xl" : "max-w-md")} style={{ border: `1px solid ${BORDER}`, maxHeight: "88vh", overflowY: "auto" }}>
         <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: `1px solid ${BORDER}` }}>
           <h3 className="text-lg" style={{ fontFamily: HEAD, color: INK }}>{title}</h3>
@@ -472,7 +473,8 @@ function Modal({ title, onClose, children, wide }) {
         </div>
         <div className="p-5">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 function Logo({ size = 36 }) {
